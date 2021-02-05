@@ -1,0 +1,66 @@
+{
+    "manifest_version": 2,
+    "name": "Web Prowler",
+    "description": "Display related pages on sidebar.",
+    "version": "1.24",
+    "applications": {
+        "gecko": {
+            "strict_min_version": "60.0"
+        }
+    },
+    "content_scripts": [
+        {
+            "all_frames": true,
+            "matches": [
+                "http://*/*",
+                "https://*/*",
+                "ftp://*/*"
+            ],
+            "js": [
+                "src/tiny_segmenter-0.2.js",
+                "src/Tokenizer_tiny_segmenter.js",
+                "src/pagescript.js"
+            ]
+        }
+    ],
+    "background": {
+        "scripts": [
+            "src/Test.js",
+            "src/localForage/dist/localforage.min.js",
+            "src/LocalStorage.js",
+            "src/tiny_segmenter-0.2.js",
+            "src/Tokenizer_tiny_segmenter.js",
+            "src/background.js"
+        ]
+    },
+    "permissions": [
+        "tabs",
+        "<all_urls>",
+        "bookmarks",
+        "history"
+    ],
+    "options_ui": {
+        "page": "options/options.html",
+        "browser_style": true
+    },
+    "sidebar_action": {
+        "default_icon": {
+            "48": "icons/icon_48.png",
+            "96": "icons/icon_96.png"
+        },
+        "default_title": "Web Prowler",
+        "default_panel": "src/panel.html"
+    },
+    "icons": {
+        "48": "icons/icon_48.png",
+        "96": "icons/icon_96.png"
+    },
+    "commands": {
+        "_execute_sidebar_action": {
+            "suggested_key": {
+                "default": "Ctrl+Alt+S"
+            },
+            "description": "Toggle the Web Prowler sidebar"
+        }
+    }
+}

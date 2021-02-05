@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <!-- <meta http-equiv="refresh" content="0; url=https://scrapbox.io/"> -->
+    <script src="Test.js"></script>
+
+    <style>
+        :root {
+            --link: #0044CC;
+            --bookmark: #6b92df;
+            --white: #ffffff;
+            --weak: #cadbffb6;
+        }
+
+        body {
+            padding: 0.5em;
+            font-family: 'Open Sans', X-LocaleSpecific, sans-serif;
+        }
+
+        button {
+            color: rgba(0, 0, 0, 0.712);
+            border: none;
+            border-radius: 100%;
+            padding: 0.3em 0.5em;
+            background-color: transparent;
+            transition: all 160ms 0s ease;
+            vertical-align: middle;
+        }
+
+        button:hover {
+            background-color: var(--weak);
+            backdrop-filter: blur(2px);
+            z-index: 1;
+        }
+
+        #main {
+            font-size: 100%;
+            width: 100%;
+            overflow: hidden
+        }
+
+        #main a {
+            text-decoration: none;
+        }
+
+        #main a .favicon {
+            width: 1em;
+            padding-right: 0.3em;
+        }
+
+        .link a {
+            color: var(--link);
+            font-size: 1em;
+            line-height: 0.95em;
+        }
+
+        .description,
+        .url {
+            font-size: 0.9em;
+            line-height: 1.01em;
+        }
+
+        .no-break {
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        .delete_button {
+            font-weight: bold;
+        }
+
+        .page_controll_button {
+            margin-bottom: -0.5em;
+            display: flex;
+            justify-content: space-between
+        }
+
+        .bookmark_button::after {
+            color: grey;
+            content: "☆";
+            font-weight: bold;
+        }
+
+        .bookmarked::after {
+            color: var(--bookmark);
+            content: "★";
+        }
+
+        .container {
+            background-color: white;
+            margin-bottom: 0.5ex;
+            line-height: 110%;
+            transition: all 70ms 0s ease;
+            padding-right: 0.4em;
+            border-right: 0.4em solid transparent;
+        }
+
+        .container.isInTab {
+            border-right: 0.4em solid var(--weak);
+        }
+
+        .ui_list_controll {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .page_delete_all_button {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .foldout {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <script src="./panel.js"></script>
+    <div id="main"></div>
+</body>
+
+</html>

@@ -1,0 +1,1 @@
+https://addons.mozilla.org/ja/firefox/addon/web-prowler/
