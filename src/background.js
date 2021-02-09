@@ -272,7 +272,6 @@ async function recommend_on_message(message, sender) {
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, sender.tab);
 
     const sortedPages = await pages_sorted_calc(page);
-    debugLog(sortedPages);
     const sortedTokens = await tokens_sorted_calc(page.tokens);
     page_related_display(sortedPages, sortedTokens);
     関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(sortedPages);
@@ -412,11 +411,13 @@ function urls_get_by_token(token) {
 }
 
 async function pages_sorted_calc(page_target) {
-    const urlset = new Set();
-    const urlset_list = page_target.tokens.map(token => urls_get_by_token(token))
-        .filter(urls => urls.size > 1)
+    const urlset_list = page_target.tokens
+        .filter(token => pagesByToken.size_get(token) > 1)
+        .filter(token => PAGE_NUMBER_BY_TOKEN_LIMIT > pagesByToken.size_get(token))
+        .map(token => urls_get_by_token(token))
         .sort((set1, set2) => set1.size > set2.size);
 
+    const urlset = new Set();
     urlset_list.forEach(tmpUrlSet => {
         for (let url of tmpUrlSet) {
             urlset.add(url);
@@ -441,8 +442,8 @@ async function pages_sorted_calc(page_target) {
 
 async function tokens_sorted_calc(tokens) {
     return tokens
-        .filter(token => urls_get_by_token(token).size > 1)
-        .sort((token1, token2) => urls_get_by_token(token1).size > urls_get_by_token(token2).size);
+        .filter(token => pagesByToken.size_get(token) > 1)
+        .sort((token1, token2) => pagesByToken.size_get(token1) > pagesByToken.size_get(token2));
 }
 
 async function page_related_display(sortedPages, sortedTokens) {
