@@ -85,6 +85,7 @@ async function init() {
 
 async function recommend_selected_on_message(message, sender) {
     if (!message.recommend_selected) { return }
+    debugLog("message", message);
     const page_selected = pageByUrl.get(message.page.url);
     page_tokens_weight_learn(page_selected, TOKEN_REWARD_ON_SELECT);
 }
