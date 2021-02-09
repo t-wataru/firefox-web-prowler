@@ -16,6 +16,10 @@ const PAGE_NUMBER_LIMIT = 200000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
+const TOKEN_REWARD_ON_REGISTER = 0.01;
+const TOKEN_REWARD_ON_IGNORED = -0.1;
+const TOKEN_REWARD_ON_DELETE = -1.0;
+const TOKEN_REWARD_ON_SELECT = 1.0;
 
 class PagesByToken extends Map {
     get(key) {
@@ -24,6 +28,13 @@ class PagesByToken extends Map {
             super.set(key, new Set());
         }
         return super.get(key)
+    }
+    size_get(key) {
+        const values = super.get(key);
+        if(!values) {
+            return 0;
+        }
+        return values.size;
     }
 }
 
@@ -52,6 +63,7 @@ async function init() {
     browser.runtime.onMessage.addListener(pages_register_on_message);
     browser.runtime.onMessage.addListener(page_delete_on_message);
     browser.runtime.onMessage.addListener(pages_delete_on_message);
+    browser.runtime.onMessage.addListener(recommend_selected_on_message);
 
     browser.bookmarks.onCreated.addListener(bookmark_urlset_reset);
     browser.bookmarks.onRemoved.addListener(bookmark_urlset_reset);
@@ -69,6 +81,20 @@ async function init() {
         console.assert(pageByUrl.size == PAGE_NUMBER_LIMIT, pageByUrl.size);
     }, PAGE_FREE_INTERVAL_MS);
     debugLog("...init");
+}
+
+async function recommend_selected_on_message(message, sender) {
+    if (!message.recommend_selected) { return }
+    const page_selected = pageByUrl.get(message.page.url);
+    page_tokens_weight_learn(page_selected, TOKEN_REWARD_ON_SELECT);
+}
+
+function page_tokens_weight_learn(page, reward) {
+    const LEARNING_ALPHA = 0.1
+    for(token_object of page.token_objects) {
+        const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(pagesByToken.get(token_object.string).size + 1, -2)
+        token_object.weight -= weight_delta;
+    }
 }
 
 async function bookmark_urlset_reset() {
@@ -253,6 +279,14 @@ async function recommend_on_message(message, sender) {
 
     page_get_queue_resize();
     page_get_queue_sort();
+
+    pages_tokens_weight_reduce(sortedPages);
+}
+
+function pages_tokens_weight_reduce(pages) {
+    for(page of pages) {
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_IGNORED);
+    }
 }
 
 async function page_register_on_message(message, sender) {
@@ -269,6 +303,7 @@ async function page_register_on_message(message, sender) {
     debugLog("Registering page");
     await page_register(page);
     tokens_too_many_within_page_set_ng(page);
+    page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
 }
 Test.test_ページを登録できること = function () {
     setTimeout(async () => {
@@ -293,6 +328,7 @@ function pages_delete_on_message(message, sender) {
     for (url of urls) {
         const page = pageByUrl.get(url);
         if (!page) { continue }
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_DELETE);
         page_delete(page);
     }
     console.assert(urls.filter(url => pageByUrl.get(url)).length == 0, message);
@@ -302,6 +338,7 @@ function page_delete_on_message(message, sender) {
     if (!message.page_delete) { return }
     const page = pageByUrl.get(message.page.url);
     page_delete(page);
+    page_tokens_weight_learn(page, TOKEN_REWARD_ON_DELETE);
     console.assert(!pageByUrl.get(page.url))
 }
 
@@ -315,6 +352,7 @@ async function pages_register_on_message(message, sender) {
             const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
             const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
             page_register(page).then(_ => tokens_too_many_within_page_set_ng(page));
+            page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
         }
     }
 }
@@ -465,10 +503,11 @@ async function 関連ページに表示されてるやつの中から情報持�
 
 function page_score(page) {
     if (page.tokens.length == 0) { return Number.MIN_SAFE_INTEGER / 2 }
-    const uniqueness = page.tokens
-        .map(token => 1 / Math.pow(pagesByToken.get(token).size + 1, 2))
+    const uniqueness = page.token_objects
+        .map(token_object => token_object.weight * Math.pow(pagesByToken.get(token_object.string).size + 1, -2))
         .reduce((a, b) => a + b) / page.tokens.length;
     const score = uniqueness + 0.001 * page.isBookmarked;
+    console.assert(score);
     return score;
 }
 
@@ -492,7 +531,8 @@ async function pages_scores_by_url(targetPage, urlSetList) {
         const urlset_tmp = urls_get_by_token(token);
         for (url of urlset_tmp) {
             const uniqueness = 1 / Math.pow(urlset_tmp.size + 1, 2);
-            page_score_element_by_url[url].uniqueness += token.length * uniqueness;
+            const weight = Page.token_object_by_text.get(token).weight;
+            page_score_element_by_url[url].uniqueness += weight * uniqueness;
         }
     }
     for (url of urlSet) {
@@ -770,6 +810,7 @@ Test.test_bookmark一覧取得のテスト = function () {
 class Token {
     constructor(string) {
         this.string = string;
+        this.weight = 1.0;
     }
 }
 

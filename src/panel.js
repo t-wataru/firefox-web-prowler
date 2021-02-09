@@ -142,17 +142,8 @@ async function element_create(page, tokens) {
 
     containerElement.appendChild(descriptionElement);
 
-    linkElement.onclick = (e) => {
-        if (e.ctrlKey || e.shiftKey) {
-            return true;
-        }
-
-        tab_activate_with_url(page.url);
-        e.preventDefault();
-
-        //リンクを押したときに遷移させたくないけど、ドラッグアンドドロップでブックマークしたい　https://qiita.com/kangyoosam/items/97e74463a84963cc7a80
-        return false;
-    };
+    linkElement.onclick = e => link_on_click(e, page);
+    linkElement.onmousedown = e => link_on_mousedown(e, page);
 
     bookmark_button.onclick = bookmark_swap_function(page, bookmark_button);
 
@@ -164,6 +155,28 @@ async function element_create(page, tokens) {
     }
 
     return containerElement;
+}
+
+function link_on_click(e, page) {
+    const message = { page: page, recommend_selected: true };
+    debugLog("message", message);
+    browser.runtime.sendMessage(message);
+    if (e.ctrlKey || e.shiftKey) {
+        return true;
+    }
+
+    tab_activate_with_url(page.url);
+    e.preventDefault();
+
+    //リンクを押したときに遷移させたくないけど、ドラッグアンドドロップでブックマークしたい　https://qiita.com/kangyoosam/items/97e74463a84963cc7a80
+    return false;
+}
+
+function link_on_mousedown(e, page) {
+    if (e.button != 1) { return }
+    const message = { page: page, recommend_selected: true };
+    debugLog("message", message);
+    browser.runtime.sendMessage(message);
 }
 
 function pages_delete(pages) {
