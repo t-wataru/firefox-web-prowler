@@ -16,12 +16,12 @@ class LocalStorage {
         return await localforage.removeItem(key);
     }
 }
-Test.test_LocalStorageでデータを保存できること = function() {
+Test.test_LocalStorageでデータを保存できること = function () {
     (async () => {
         const key = "key_text_test";
         const value = "value text";
         await LocalStorage.saveItem(key, value)
-        
+
         const result_loadItem = await LocalStorage.loadItem(key);
         console.assert(result_loadItem == value, result_loadItem);
 
@@ -34,7 +34,7 @@ Test.test_LocalStorageでデータを保存できること = function() {
         console.assert(!keys.includes(key), keys);
     })();
 }
-Test.test_LocalStorageでオブジェクトを保存できること = function() {
+Test.test_LocalStorageでオブジェクトを保存できること = function () {
     (async () => {
         const key = "obj_test";
         const value = { text: "value text" };
@@ -43,7 +43,7 @@ Test.test_LocalStorageでオブジェクトを保存できること = function()
         console.assert(result.text === value.text, result);
     })();
 }
-Test.test_LocalStorageででかいオブジェクトを保存できること = function() {
+Test.test_LocalStorageででかいオブジェクトを保存できること = function () {
     (async () => {
         const key = "big_obj_test";
         const value = { text: "value text".repeat(1000) };

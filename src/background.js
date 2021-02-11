@@ -31,7 +31,7 @@ class PagesByToken extends Map {
     }
     size_get(key) {
         const values = super.get(key);
-        if(!values) {
+        if (!values) {
             return 0;
         }
         return values.size;
@@ -92,7 +92,7 @@ async function recommend_selected_on_message(message, sender) {
 
 function page_tokens_weight_learn(page, reward) {
     const LEARNING_ALPHA = 0.1
-    for(token_object of page.token_objects) {
+    for (token_object of page.token_objects) {
         const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(pagesByToken.get(token_object.string).size + 1, -2)
         token_object.weight -= weight_delta;
     }
@@ -197,7 +197,7 @@ async function page_register(page) {
     if (page_old) {
         page_old.tokens.forEach(token => {
             pagesByToken.get(token).delete(page_old);
-            if(pagesByToken.get(token).size == 0) {
+            if (pagesByToken.get(token).size == 0) {
                 pagesByToken.delete(token);
             }
         });
@@ -284,7 +284,7 @@ async function recommend_on_message(message, sender) {
 }
 
 function pages_tokens_weight_reduce(pages) {
-    for(page of pages) {
+    for (page of pages) {
         page_tokens_weight_learn(page, TOKEN_REWARD_ON_IGNORED);
     }
 }
@@ -828,7 +828,7 @@ class Page {
         this.token_objects = [];
         this.tokens = tokens;
         this.favicon_url = favicon_url;
-        if(text_content != null) {
+        if (text_content != null) {
             this.text_content = text_content
         }
     }
