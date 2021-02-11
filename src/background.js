@@ -54,7 +54,6 @@ async function init() {
         if (HISTORY_LOAD) {
             const histories = await history_array();
             await pages_from_history(histories);
-            console.assert(pageByUrl.size > histories.length * 0.9)
         }
     });
 
