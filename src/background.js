@@ -162,8 +162,8 @@ Test.test_配列からランダムな要素が取り出されること = functio
     Test.assert(count_array[0] > 10 && count_array[1] > 10 && count_array[2] > 10 && count_array[3] > 10 && count_array[4] > 10 && count_array[1] > 10 && count_array[1] > 10, count_array);
     Test.assert(count_array.length == 5);
     const array_choiced_sum = array_choiced.reduce((a, b) => a + b);
-    Test.assert(array_choiced_sum < array_size * (0 + 1 + 2 + 3 + 4) / 5 + 100, array_choiced_sum);
-    Test.assert(array_choiced_sum > array_size * (0 + 1 + 2 + 3 + 4) / 5 - 100, array_choiced_sum);
+    Test.assert(array_choiced_sum < array_size * (0 + 1 + 2 + 3 + 4) / 5 + array_size, array_choiced_sum);
+    Test.assert(array_choiced_sum > array_size * (0 + 1 + 2 + 3 + 4) / 5 - array_size, array_choiced_sum);
     Test.assert(count_array.reduce((a, b) => a + b) == array_size, count_array);
 }
 
