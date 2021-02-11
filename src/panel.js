@@ -120,7 +120,7 @@ async function element_create(page, tokens) {
 
     const linkElement = document.createElement("a");
     linkElement.classList.add("link");
-    linkElement.classList.add("no-break");
+    // linkElement.classList.add("no-break");
     linkElement.href = page.url;
     linkElement.title = page.title;
     // const faviconElement = document.createElement("img");
