@@ -161,7 +161,7 @@ function link_on_click(e, page) {
     const message = { page: page, recommend_selected: true };
     debugLog("message", message);
     browser.runtime.sendMessage(message);
-    if (e.ctrlKey || e.shiftKey) {
+    if (e.ctrlKey || e.shiftKey || e.metaKey) {
         return true;
     }
 
