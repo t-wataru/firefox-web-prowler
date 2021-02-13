@@ -16,6 +16,7 @@ const PAGE_NUMBER_LIMIT = 200000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
+const TOKEN_REWARD_ON_RECOMMEND = 0.01;
 const TOKEN_REWARD_ON_REGISTER = 0.01;
 const TOKEN_REWARD_ON_IGNORED = -0.1;
 const TOKEN_REWARD_ON_DELETE = -1.0;
@@ -280,6 +281,8 @@ async function recommend_on_message(message, sender) {
     page_get_queue_sort();
 
     pages_tokens_weight_reduce(sortedPages);
+
+    page_tokens_weight_learn(page, TOKEN_REWARD_ON_RECOMMEND);
 }
 
 function pages_tokens_weight_reduce(pages) {
@@ -505,7 +508,7 @@ async function 関連ページに表示されてるやつの中から情報持�
 function page_score(page) {
     if (page.tokens.length == 0) { return Number.MIN_SAFE_INTEGER / 2 }
     const uniqueness = page.token_objects
-        .map(token_object => token_object.weight * Math.pow(pagesByToken.get(token_object.string).size + 1, -2))
+        .map(token_object => token_object.weight * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2))
         .reduce((a, b) => a + b) / page.tokens.length;
     const score = uniqueness + 0.001 * page.isBookmarked;
     console.assert(score);
@@ -554,12 +557,23 @@ async function pages_scores_by_url(targetPage, urlSetList) {
         page_score_element_by_url[url].similarity /= pageByUrl.get(url).tokens.length;
     }
 
+    for (url of urlSet) {
+        page_score_element_by_url[url].score_alone = page_score(page);
+    }
+
     const uniquenessArray = Object.values(page_score_element_by_url).map(pageScoreElement => pageScoreElement.uniqueness);
     const maxUniqueness = Math.max(...uniquenessArray);
     const minUniqueness = Math.min(...uniquenessArray);
 
     const similarityArray = Object.values(page_score_element_by_url).map(pageScoreElement => pageScoreElement.similarity);
     const maxSimilarity = Math.max(...similarityArray);
+
+    let score_alone_max = Number.MIN_SAFE_INTEGER;
+    let score_alone_min = Number.MAX_SAFE_INTEGER;
+    for (score_elem of Object.values(page_score_element_by_url)) {
+        if (score_alone_max < score_elem.score_alone) { score_alone_max = score_elem.score_alone }
+        if (score_alone_min > score_elem.score_alone) { score_alone_min = score_elem.score_alone }
+    }
 
     const scoreByUrl = {};
     const tabs = await browser.tabs.query({});
@@ -571,7 +585,8 @@ async function pages_scores_by_url(targetPage, urlSetList) {
         const onTabScore = url_is_on_tab(url, tabs) ? 1 : 0;
         const normaledUniqueness = (page_score_element_by_url[url].uniqueness - minUniqueness) / (maxUniqueness - minUniqueness + 0.0000000000001);
         const normaledSimilarity = page_score_element_by_url[url].similarity / maxSimilarity;
-        scoreByUrl[url] = normaledUniqueness - 0.05 * normaledSimilarity + 0.001 * bookmarkedScore + 0.00001 * onTabScore;
+        const score_alone_normaled = (page_score_element_by_url[url].score_alone - score_alone_min) / (score_alone_max - score_alone_min + 0.0000000000001);
+        scoreByUrl[url] = normaledUniqueness + score_alone_normaled - 0.05 * normaledSimilarity + 0.001 * bookmarkedScore + 0.00001 * onTabScore;
     }
     return scoreByUrl;
 }
