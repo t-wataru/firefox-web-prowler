@@ -93,7 +93,7 @@ async function recommend_selected_on_message(message, sender) {
 function page_tokens_weight_learn(page, reward) {
     const LEARNING_ALPHA = 0.1
     for (token_object of page.token_objects) {
-        const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(pagesByToken.get(token_object.string).size + 1, -2)
+        const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2)
         token_object.weight -= weight_delta;
     }
 }
@@ -197,7 +197,7 @@ async function page_register(page) {
     if (page_old) {
         page_old.tokens.forEach(token => {
             pagesByToken.get(token).delete(page_old);
-            if (pagesByToken.get(token).size == 0) {
+            if (pagesByToken.size_get(token) == 0) {
                 pagesByToken.delete(token);
             }
         });
@@ -224,7 +224,7 @@ function tokens_too_many_within_page_set_ng(page) {
 
 function tokens_too_many_set_ng(token_array) {
     token_array.forEach(token => {
-        if (pagesByToken.get(token).size > PAGE_NUMBER_BY_TOKEN_LIMIT) {
+        if (pagesByToken.size_get(token) > PAGE_NUMBER_BY_TOKEN_LIMIT) {
             token_set_ng(token);
             return;
         }
@@ -383,6 +383,9 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
 }
 Test.test_urlが同じページが登録されても古い奴が消されていること = function () {
     setTimeout(async () => {
+        if(pageByUrl.has("https://example.com/")) {
+            page_delete(pageByUrl.get("https://example.com/"));
+        }
         const pages = [
             { url: "https://example.com/", text_content: "example3 text azqwsxedcrfvtbgy", title: "example1 site" },
             { url: "https://example.com/", text_content: "example3 text vcrfxvtbgytbgyse", title: "example2 site" },
@@ -396,8 +399,8 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
             console.assert(pageByUrl.get(page.url) == page, page);
             console.assert(!page.tokens.find(token => !pagesByToken.get(token).has(page)), page)
         }
-        console.assert(pagesByToken.get("azqwsxedcrfvtbgy").size == 0, pagesByToken.get("azqwsxedcrfvtbgy"));
-        console.assert(pagesByToken.get("vcrfxvtbgytbgyse").size == 1, pagesByToken.get("vcrfxvtbgytbgyse"));
+        console.assert(pagesByToken.size_get("azqwsxedcrfvtbgy") == 0, pagesByToken.get("azqwsxedcrfvtbgy"));
+        console.assert(pagesByToken.size_get("vcrfxvtbgytbgyse") == 1, pagesByToken.get("vcrfxvtbgytbgyse"));
         console.assert(![...pagesByToken.entries()].find(e => [...e[1]].find(p => p.tokens.includes("azqwsxedcrfvtbgy") && p.url == "https://example.com/")), [...pagesByToken.entries()].find(e => [...e[1]].find(p => p.tokens.includes("azqwsxedcrfvtbgy") && p.url == "https://example.com/")));
 
         page_delete(pageByUrl.get("https://example.com/"));
@@ -964,12 +967,22 @@ async function pages_from_history(histories) {
     debugLog("...createPagesFromHistory");
 }
 
-function url_is_exist(url) {
+function url_is_exist(url, pageByUrl_ = pageByUrl) {
     if (!url || url.constructor != String) { return false }
-    if (pageByUrl.get(history.url)) {
+    if (pageByUrl_.has(url)) {
         return true;
     }
     return false
+}
+Test.test_URLと対応するページがあればtrueを返す = function() {
+    const url = "https://example.com";
+    const pageByUrl_ = new Map([[url, new Page(url, [], null, "example title", false, null, null)]]);
+    Test.assert(url_is_exist(url, pageByUrl_));
+}
+Test.test_URLと対応するページがなければfalseを返す = function() {
+    const url = "https://example.com";
+    const pageByUrl_ = new Map([[url, new Page(url, [], null, "example title", false, null, null)]]);
+    Test.assert(!url_is_exist("https://dont.exist.example.com", pageByUrl_));
 }
 
 function sleep(time) {
