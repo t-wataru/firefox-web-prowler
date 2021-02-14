@@ -171,11 +171,12 @@ async function load() {
     const urls = (await LocalStorage.keys())
         .filter(url => url.match(/^https?/g))
         .filter(url => !url_is_exist(url));
-    for (url of urls) {
+    const promises = urls.map(async url => {
         const page = await Page.load(url, bookmarkedUrlSet);
-        if (!page) { continue }
-        page_register(page);
-    }
+        if (!page) { return }
+        await page_register(page);
+    });
+    await Promise.all(promises);
 }
 
 let savingTimeout;
