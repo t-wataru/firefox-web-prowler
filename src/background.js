@@ -298,7 +298,7 @@ async function page_register_on_message(message, sender) {
 
     const title = message.page.title;
     const innerText = message.page.text_content;
-    const tokens = await tokens_calc(title + "\n" + innerText);
+    const tokens = (await tokens_calc(title + "\n" + innerText)).concat(tokens_from_url(message.page.url));
     const isBookmarked = await url_is_bookmarked(message.page.url);
     const favicon_url = message.page.favicon_url;
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, null, favicon_url);
@@ -322,6 +322,28 @@ Test.test_ページを登録できること = function () {
         console.assert(!pageByUrl.get(page.url), pageByUrl.get(page.url));
         console.assert(![...pagesByToken.values()].find(pages => pages.has(page)));
     }, 5000)
+}
+
+function tokens_from_url(url) {
+    return domain_from_url(url).split(".");
+}
+Test.test_URLのドメインをトークンにできること = function () {
+    const url = "https://example.com";
+    const tokens = tokens_from_url(url);
+    Test.assert(JSON.stringify(tokens) == JSON.stringify(["example", "com"]), tokens);
+}
+Test.test_URLに変な文字列が入っていたら空配列を返すこと = function () {
+    const url = "うぇｊふぉい；かうぇｈ";
+    const tokens = tokens_from_url(url);
+    Test.assert(JSON.stringify(tokens) == JSON.stringify([""]), tokens);
+}
+
+function domain_from_url(url) {
+    const match = url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/);
+    if (match) {
+        return match[1];
+    }
+    return "";
 }
 
 function pages_delete_on_message(message, sender) {
@@ -350,7 +372,8 @@ async function pages_register_on_message(message, sender) {
         for (page_in_message of message.pages) {
             const title = page_in_message.title;
             const text_content = page_in_message.text_content;
-            const tokens = await tokens_calc(title + "\n" + text_content);
+            const url = page_in_message.url;
+            const tokens = (await tokens_calc(title + "\n" + text_content)).concat(tokens_from_url(url));
             const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
             const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
             page_register(page).then(_ => tokens_too_many_within_page_set_ng(page));
@@ -383,7 +406,7 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
 }
 Test.test_urlが同じページが登録されても古い奴が消されていること = function () {
     setTimeout(async () => {
-        if(pageByUrl.has("https://example.com/")) {
+        if (pageByUrl.has("https://example.com/")) {
             page_delete(pageByUrl.get("https://example.com/"));
         }
         const pages = [
@@ -746,7 +769,7 @@ async function bookmark_page_list() {
         .filter(b => uri_is_decodable(b.url));
     const pages = [];
     for (b of bookmarks) {
-        const tokens = await tokens_calc(b.title);
+        const tokens = (await tokens_calc(b.title)).concat(tokens_from_url(b.url));
         pages.push(new Page(b.url, tokens, "", b.title, true, null));
     }
     return pages;
@@ -974,12 +997,12 @@ function url_is_exist(url, pageByUrl_ = pageByUrl) {
     }
     return false
 }
-Test.test_URLと対応するページがあればtrueを返す = function() {
+Test.test_URLと対応するページがあればtrueを返す = function () {
     const url = "https://example.com";
     const pageByUrl_ = new Map([[url, new Page(url, [], null, "example title", false, null, null)]]);
     Test.assert(url_is_exist(url, pageByUrl_));
 }
-Test.test_URLと対応するページがなければfalseを返す = function() {
+Test.test_URLと対応するページがなければfalseを返す = function () {
     const url = "https://example.com";
     const pageByUrl_ = new Map([[url, new Page(url, [], null, "example title", false, null, null)]]);
     Test.assert(!url_is_exist("https://dont.exist.example.com", pageByUrl_));
@@ -990,7 +1013,7 @@ function sleep(time) {
 }
 
 async function toPageFromHistory(history) {
-    const tokens = await tokens_calc(history.title);
+    const tokens = (await tokens_calc(history.title)).concat(tokens_from_url(history.url));
     return new Page(history.url, tokens, "", history.title, bookmarkedUrlSet.has(history.url), null);
 }
 Test.test_履歴からページオブジェクトが生成できること = async function () {
@@ -1052,7 +1075,7 @@ class Page_get {
         const innerText = body.innerText + og_contents;
         const titleElem = htmlElem.querySelector("title");
         const title = titleElem ? titleElem.innerText : "";
-        const tokens = await tokens_calc(title + " " + innerText);
+        const tokens = (await tokens_calc(title + "\n" + innerText)).concat(tokens_from_url(url));
         const bookmark = await url_is_bookmarked(url);
         const favicon_url = htmlElem.querySelector("link[rel~='icon']")?.href;
         const page = new Page(url, tokens, innerText, title, bookmark, null, favicon_url);
@@ -1068,7 +1091,7 @@ class Page_get {
             .slice(0, 300);
         const pages_from_link = await Promise.all(a_elem_array.map(async a_elem => {
             const linkText = a_elem.innerText.replace(/\n|\s/g, " ");
-            const tokens = await tokens_calc(linkText);
+            const tokens = (await tokens_calc(linkText)).concat(tokens_from_url(a_elem.href));
             return new Page(a_elem.href, tokens, "", linkText, null, null);
         }));
         return pages_from_link.concat(page);
@@ -1085,7 +1108,7 @@ class Page_get {
         const innerText = body.innerText
         const titleElem = htmlElem.getElementsByTagName("title")[0];
         const title = titleElem ? titleElem.innerText : "";
-        const tokens = await tokens_calc(title + " " + innerText);
+        const tokens = (await tokens_calc(title + "\n" + innerText)).concat(tokens_from_url(url));
         const page = new Page(url, tokens, innerText, title, null, null);
         return page
     }
