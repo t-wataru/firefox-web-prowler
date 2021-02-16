@@ -652,7 +652,7 @@ async function tokens_calc(text) {
     const maxComplexity = text_complexity_calc("zz");
     let tokens = (await tokenizer.tokenize(text))
         .map(s => s.replace(/\s/g, ""))
-        .filter(s => s.length > 0)
+        .filter(s => s.length > 1)
         .map(s => s.toLowerCase());
     tokens = Array.from(new Set(tokens))
         .sort((s1, s2) => s1.length < s2.length);
