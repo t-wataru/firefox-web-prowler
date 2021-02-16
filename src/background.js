@@ -116,7 +116,7 @@ async function prowl() {
 
     for (const page_got of pages_got) {
         page_got.isBookmarked = bookmarkedUrlSet.has(page_got.url);
-        page_register(page_got).then(_ => tokens_too_many_within_page_set_ng(page_got));
+        page_register(page_got);
     }
 
     debugLog("pages_got", pages_got);
@@ -171,6 +171,7 @@ async function load() {
     const urls = (await LocalStorage.keys())
         .filter(url => url.match(/^https?/g))
         .filter(url => !url_is_exist(url));
+    if (!urls) { return }
     const promises = urls.map(async url => {
         const page = await Page.load(url, bookmarkedUrlSet);
         if (!page) { return }
@@ -211,8 +212,6 @@ async function page_register(page) {
         pagesByToken.get(token).add(page);
     });
     pageByUrl.set(page.url, page);
-
-    page.save();
 
     console.assert(pageByUrl.get(page.url) == page);
     console.assert(!page.tokens.find(token => !pagesByToken.get(token).has(page)), page);
@@ -282,7 +281,7 @@ async function recommend_on_message(message, sender) {
     page_get_queue_sort();
 
     pages_tokens_weight_reduce(sortedPages);
-
+    
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_RECOMMEND);
 }
 
@@ -305,7 +304,6 @@ async function page_register_on_message(message, sender) {
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, null, favicon_url);
     debugLog("Registering page");
     await page_register(page);
-    tokens_too_many_within_page_set_ng(page);
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
 }
 Test.test_ページを登録できること = function () {
@@ -368,18 +366,17 @@ function page_delete_on_message(message, sender) {
 }
 
 async function pages_register_on_message(message, sender) {
-    if (message.type == "registers") {
-        debugLog("Registering pages");
-        for (page_in_message of message.pages) {
-            const title = page_in_message.title;
-            const text_content = page_in_message.text_content;
-            const url = page_in_message.url;
-            const tokens = (await tokens_calc(title + "\n" + text_content)).concat(tokens_from_url(url));
-            const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
-            const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
-            page_register(page).then(_ => tokens_too_many_within_page_set_ng(page));
-            page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
-        }
+    if (!message.type == "registers") { return }
+
+    for (page_in_message of message.pages) {
+        const title = page_in_message.title;
+        const text_content = page_in_message.text_content;
+        const url = page_in_message.url;
+        const tokens = (await tokens_calc(title + "\n" + text_content)).concat(tokens_from_url(url));
+        const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
+        const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
+        page_register(page);
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
     }
 }
 Test.test_一つのメッセージで送られた複数のページを一括で登録できること = function () {
@@ -456,7 +453,7 @@ async function pages_sorted_calc(page_target) {
             return;
         }
     });
-    const pages_scores_by_url_ = await pages_scores_by_url(page_target, urlset_list);
+    const pages_scores_by_url_ = await pages_scores_by_url(page_target, urlset, urlset_list).catch(e=>console.error(e));
 
     urlset.delete(page_target.url);
 
@@ -527,7 +524,7 @@ async function 関連ページに表示されてるやつの中から情報持�
         if (pages_got == null) { continue };
         for (const page_got of pages_got) {
             page_got.isBookmarked = false;
-            page_register(page_got).then(_ => tokens_too_many_within_page_set_ng(page_got));
+            page_register(page_got);
         }
     }
 }
@@ -547,42 +544,30 @@ function page_score(page) {
  * なんか名前つけたい
  * displayingPageと、targetPageかな
  */
-async function pages_scores_by_url(targetPage, urlSetList) {
-    const urlSet = urlset_related_to_page(targetPage);
-
+async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
     const page_score_element_by_url = {};
     for (url of urlSet) {
-        page_score_element_by_url[url] = {};
+        page_score_element_by_url[url] = {}; 
     }
 
     for (url of urlSet) {
         page_score_element_by_url[url].uniqueness = 0;
     }
-    for (token of targetPage.tokens) {
-        const urlset_tmp = urls_get_by_token(token);
+
+    const token_objects_target = targetPage.token_objects.filter(token_object => token_object.string.length > 1); 
+    for (token_object of token_objects_target) {
+        if(!pagesByToken.has(token_object.string)) { continue }
+        const urlset_tmp = urls_get_by_token(token_object.string);
+        const size = urlset_tmp.size + 1;
+        const uniqueness = 1 / ((size + 1)*(size + 1));
         for (url of urlset_tmp) {
-            const uniqueness = 1 / Math.pow(urlset_tmp.size + 1, 2);
-            const weight = Page.token_object_by_text.get(token).weight;
+            if(!urlSet.has(url)){ continue }
+            const weight = token_object.weight;
             page_score_element_by_url[url].uniqueness += weight * uniqueness;
         }
     }
-    for (url of urlSet) {
-        const page = pageByUrl.get(url);
-        // page_score_element_by_url[url].uniqueness /= Math.pow(page.tokens.length, 0.5);
-    }
 
-    //Similarity
-    for (url of urlSet) {
-        page_score_element_by_url[url].similarity = 0;
-    }
-    urlSetList.forEach(urlset_tmp => {
-        for (let url of urlset_tmp) {
-            page_score_element_by_url[url].similarity += 1.0;
-        }
-    });
-    for (let url of urlSet) {
-        page_score_element_by_url[url].similarity /= pageByUrl.get(url).tokens.length;
-    }
+
 
     for (url of urlSet) {
         page_score_element_by_url[url].score_alone = page_score(page);
@@ -592,8 +577,6 @@ async function pages_scores_by_url(targetPage, urlSetList) {
     const maxUniqueness = Math.max(...uniquenessArray);
     const minUniqueness = Math.min(...uniquenessArray);
 
-    const similarityArray = Object.values(page_score_element_by_url).map(pageScoreElement => pageScoreElement.similarity);
-    const maxSimilarity = Math.max(...similarityArray);
 
     let score_alone_max = Number.MIN_SAFE_INTEGER;
     let score_alone_min = Number.MAX_SAFE_INTEGER;
@@ -611,9 +594,8 @@ async function pages_scores_by_url(targetPage, urlSetList) {
         const bookmarkedScore = page.isBookmarked ? 1 : 0;
         const onTabScore = url_is_on_tab(url, tabs) ? 1 : 0;
         const normaledUniqueness = (page_score_element_by_url[url].uniqueness - minUniqueness) / (maxUniqueness - minUniqueness + 0.0000000000001);
-        const normaledSimilarity = page_score_element_by_url[url].similarity / maxSimilarity;
         const score_alone_normaled = (page_score_element_by_url[url].score_alone - score_alone_min) / (score_alone_max - score_alone_min + 0.0000000000001);
-        scoreByUrl[url] = normaledUniqueness + score_alone_normaled - 0.05 * normaledSimilarity + 0.001 * bookmarkedScore + 0.00001 * onTabScore;
+        scoreByUrl[url] = normaledUniqueness + score_alone_normaled - 0.05 * bookmarkedScore + 0.00001 * onTabScore;
     }
     return scoreByUrl;
 }
@@ -757,7 +739,6 @@ async function pages_create_from_bookmarks_without_network() {
     debugLog("pages from bookmark", pages);
     for (page of pages.filter(p => !page_is_exist(p))) {
         await page_register(page);
-        tokens_too_many_within_page_set_ng(page);
     }
     debugLog("pagesByToken", pagesByToken);
     debugLog("...createPagesFromBookmarksWithoutNetwork");
@@ -986,7 +967,6 @@ async function pages_from_history(histories) {
         const page = await toPageFromHistory(history);
         if (page_is_exist(page)) { continue }
         await page_register(page);
-        tokens_too_many_within_page_set_ng(page);
     }
     debugLog("...createPagesFromHistory");
 }
