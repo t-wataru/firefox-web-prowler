@@ -891,7 +891,6 @@ class Page {
         this.title = title;
         this.token_objects = [];
         this.tokens = tokens;
-        this.favicon_url = favicon_url;
         if (text_content != null) {
             this.text_content = text_content;
         }
