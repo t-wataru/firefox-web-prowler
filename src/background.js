@@ -37,6 +37,12 @@ class PagesByToken extends Map {
         }
         return values.size;
     }
+    add(key, value) {
+        if(value){
+            this.get(key).add(value);
+
+        }
+    }
 }
 
 page_get_queue = new Set();
@@ -209,7 +215,7 @@ async function page_register(page) {
     if (tokens_alive.length == 0) { return }
     page.tokens = tokens_alive;
     page.tokens.forEach(token => {
-        pagesByToken.get(token).add(page);
+        pagesByToken.add(token, page);
     });
     pageByUrl.set(page.url, page);
 
