@@ -649,10 +649,11 @@ Test.test_配列のANDが取れること = function () {
 async function tokens_calc(text) {
     if (!text) { return [] }
 
-    const maxComplexity = text_complexity_calc("zz");
+    const minComplexity = text_complexity_calc("zz");
     let tokens = (await tokenizer.tokenize(text))
         .map(s => s.replace(/\s/g, ""))
         .filter(s => s.length > 1)
+        .filter(s => text_complexity_calc(s) > minComplexity)
         .map(s => s.toLowerCase());
     tokens = Array.from(new Set(tokens))
         .sort((s1, s2) => s1.length < s2.length);
