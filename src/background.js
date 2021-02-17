@@ -1103,7 +1103,7 @@ class Page_get {
 }
 Test.test_URLからページオブジェクトを生成できること = function () {
     (async () => {
-        const url = "http://example.com/";
+        const url = "https://example.com/";
         const page = await Page_get.createPageFromUrl(url);
         console.assert(page.title == "Example Domain", page);
         console.assert((await page.text_content).includes("This domain is for use in illustrative examples in documents."), page);
