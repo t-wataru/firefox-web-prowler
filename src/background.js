@@ -618,8 +618,7 @@ function text_complexity_calc(text) {
     if (text.length == 0) {
         return 0;
     }
-    // const textComplexity = Array.from(text).map(a=>a.charCodeAt()).reduce((a,b)=>a+b);
-    const textComplexity = text.length;
+    const textComplexity = Array.from(text).map(a=>a.charCodeAt()).reduce((a,b)=>a+b);
     return textComplexity
 }
 
@@ -659,7 +658,6 @@ async function tokens_calc(text) {
     let tokens = (await tokenizer.tokenize(text))
         .map(s => s.replace(/\s/g, ""))
         .filter(s => s.length > 1)
-        .filter(s => text_complexity_calc(s) > minComplexity)
         .map(s => s.toLowerCase());
     tokens = Array.from(new Set(tokens))
         .sort((s1, s2) => s1.length < s2.length);
@@ -670,42 +668,7 @@ async function tokens_calc(text) {
 Test.test_テキストを分かち書きしてトークンが取り出せること = async function () {
     const text = "このフレームワークでは、自社が置かれた状況をCustomer（顧客）、Competitor（競合）、Company（自社）の観点から情報を整理し、顧客に対する相対的な競合優位性を検証します。";
     const tokens = await tokens_calc(text);
-    console.assert(JSON.stringify(tokens) == JSON.stringify([
-        "competitor",
-        "customer",
-        "フレームワーク",
-        "company",
-        "に対する",
-        "この",
-        "自社",
-        "置か",
-        "状況",
-        "顧客",
-        "競合",
-        "観点",
-        "から",
-        "情報",
-        "整理",
-        "相対",
-        "優位",
-        "検証",
-        "ます",
-        "で",
-        "は",
-        "、",
-        "が",
-        "れ",
-        "た",
-        "を",
-        "（",
-        "）",
-        "の",
-        "し",
-        "的",
-        "な",
-        "性",
-        "。"
-    ]), tokens);
+    console.assert(JSON.stringify(tokens) == JSON.stringify(["competitor", "customer", "フレームワーク", "company", "に対する", "この", "自社", "置か", "状況", "顧客", "競合", "観点", "から", "情報", "整理", "相対", "優位", "検証", "ます"]), tokens);
 }
 
 
