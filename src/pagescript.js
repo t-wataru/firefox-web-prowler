@@ -37,7 +37,6 @@ window.onfocus = function (event) {
   recommend_request.textLines_before = "";
   page_register_request.textLines_before = "";
 
-  page_register_request(text_in_html());
   recommend_request(text_query());
 }
 
@@ -65,8 +64,8 @@ window.addEventListener('scroll', function (e) {
     debugLog("scroll");
     const _text_in_html = text_in_html();
     const _text_selection = text_selection();
-    page_register_request(_text_in_html);
     recommend_request(_text_selection ? _text_selection : _text_in_html);
+    page_register_request(_text_in_html);
   }, SCROLL_DELAY_MS);
 });
 
