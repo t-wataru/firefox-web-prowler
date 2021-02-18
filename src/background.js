@@ -222,14 +222,20 @@ async function page_register(page) {
     console.assert(page != undefined, page);
     console.assert(page.constructor == Page, page);
 
-    if (await page.title == '') {
+    const title = await page.title;
+    if (title == '') {
         return;
     }
-    if (pageByUrl.get(page.url) && (await pageByUrl.get(page.url).text_content) == (await page.text_content)) {
-        return;
-    }
-    if (pageByUrl.get(page.url) && (await pageByUrl.get(page.url).text_content) != '' && (await page.text_content) == '') {
-        return;
+
+    if (pageByUrl.has(page.url)) {
+        const text_content = await page.text_content;
+        const text_content_old = await pageByUrl.get(page.url).text_content;
+        if (text_content_old == text_content) {
+            return;
+        }
+        if (text_content_old != '' && text_content == '') {
+            return;
+        }
     }
 
     const page_old = pageByUrl.get(page.url);
@@ -348,6 +354,7 @@ async function page_register_on_message(message, sender) {
     const isBookmarked = await url_is_bookmarked(message.page.url);
     const favicon_url = message.page.favicon_url;
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, null, favicon_url);
+    await page.async();
     debugLog('Registering page');
     await page_register(page);
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
@@ -422,16 +429,18 @@ async function pages_register_on_message(message, sender) {
         return;
     }
 
-    for (page_in_message of message.pages) {
+    const register_promises = message.pages.map(async (page_in_message) => {
         const title = page_in_message.title;
         const text_content = page_in_message.text_content;
         const url = page_in_message.url;
         const tokens = (await tokens_calc(title + '\n' + text_content)).concat(tokens_from_url(url));
         const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
         const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
-        page_register(page);
-        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
-    }
+        await page.async();
+        await page_register(page);
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER)
+    });
+    await Promise.all(register_promises);
 }
 Test.test_一つのメッセージで送られた複数のページを一括で登録できること = function () {
     setTimeout(async () => {
@@ -439,11 +448,20 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
             { url: 'https://example1.com/', text_content: 'example1 text azqwsxedcrfvtbgy', title: 'example1 site' },
             { url: 'https://example2.com/', text_content: 'example2 text vcrfxvtbgytbgysed', title: 'example2 site' },
         ];
+
+        for (page_ of pages) {
+            const page = pageByUrl.get(page_.url);
+            if (page) {
+                page_delete(page);
+            }
+        }
+
         const message = { pages: pages, type: 'registers' };
         await pages_register_on_message(message, null);
 
         for (page_ of pages) {
             const page = pageByUrl.get(page_.url);
+            console.assert(page, pageByUrl);
             console.assert(pageByUrl.get(page.url) == page, page);
             console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
         }
@@ -571,7 +589,8 @@ async function 関連ページに表示されてるやつの中から情報持�
         if (pages_contents_getting.length > PAGE_CONTENTS_GET_SIZE) {
             break;
         }
-        if ((await page.text_content.constructor) == String && (await page.text_content.length) == 0) {
+        const text_content = await page.text_content;
+        if (text_content.constructor == String && text_content.length == 0) {
             pages_contents_getting.push(page);
         }
     }
@@ -916,6 +935,10 @@ class Page {
         }
     }
 
+    async async() {
+        return await Promise.all([this.title_promise, this.text_content]);
+    }
+
     get title_key() {
         return `{url: ${this.url}, title = true}`;
     }
@@ -926,7 +949,7 @@ class Page {
 
     set title(text) {
         Test.assert(text.constructor == String, text);
-        return LocalStorage.saveItem(this.title_key, text).catch((e) => {
+        this.title_promise = LocalStorage.saveItem(this.title_key, text).catch((e) => {
             console.warn(e);
         });
     }
@@ -1004,7 +1027,7 @@ class Page {
 
     set text_content(value) {
         Test.assert(value.constructor == String, value);
-        return LocalStorage.saveItem(this.key_storage(), value).catch((e) => {
+        this.text_content_promise = LocalStorage.saveItem(this.key_storage(), value).catch((e) => {
             console.warn(e);
         });
     }
@@ -1038,11 +1061,12 @@ Test.test_ページをストレージから複製できること2 = async functi
 };
 
 async function page_innerText_save(page) {
-    if ((await page.text_content) == '') {
+    const text_content = await page.text_content;
+    if (text_content == '') {
         return;
     }
     debugLog(page);
-    return await LocalStorage.saveItem(page.url, await page.text_content).catch((e) => {
+    return await LocalStorage.saveItem(page.url, text_content).catch((e) => {
         console.error(e);
         return '';
     });
@@ -1241,7 +1265,7 @@ Test.test_URLからページオブジェクトを生成できること = functio
     (async () => {
         const url = 'https://example.com/';
         const page = await Page_get.createPageFromUrl(url);
-        console.assert(await page.title == 'Example Domain', page);
+        console.assert((await page.title) == 'Example Domain', page);
         console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), page);
         console.assert(page.tokens.includes('illustrative'), page);
         console.assert(page.url == url, page);
