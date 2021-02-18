@@ -185,7 +185,16 @@ Test.test_配列からランダムな要素が取り出されること = functio
         .map((_) => array_choice(array));
     const count_array = Array(5).fill(0);
     array_choiced.forEach((e) => count_array[e]++);
-    Test.assert(count_array[0] > 10 && count_array[1] > 10 && count_array[2] > 10 && count_array[3] > 10 && count_array[4] > 10 && count_array[1] > 10 && count_array[1] > 10, count_array);
+    Test.assert(
+        count_array[0] > 10 &&
+            count_array[1] > 10 &&
+            count_array[2] > 10 &&
+            count_array[3] > 10 &&
+            count_array[4] > 10 &&
+            count_array[1] > 10 &&
+            count_array[1] > 10,
+        count_array
+    );
     Test.assert(count_array.length == 5);
     const array_choiced_sum = array_choiced.reduce((a, b) => a + b);
     Test.assert(array_choiced_sum < (array_size * (0 + 1 + 2 + 3 + 4)) / 5 + array_size, array_choiced_sum);
@@ -213,7 +222,7 @@ async function page_register(page) {
     console.assert(page != undefined, page);
     console.assert(page.constructor == Page, page);
 
-    if (page.title == '') {
+    if (await page.title == '') {
         return;
     }
     if (pageByUrl.get(page.url) && (await pageByUrl.get(page.url).text_content) == (await page.text_content)) {
@@ -510,13 +519,18 @@ async function pages_sorted_calc(page_target) {
         .map((url) => pageByUrl.get(url))
         .slice(0, PAGE_DISPLAY_LENGTH);
 
-    console.assert(sortedPages.length <= 1 || pages_scores_by_url_[sortedPages[0].url] >= pages_scores_by_url_[sortedPages[sortedPages.length - 1].url], sortedPages);
+    console.assert(
+        sortedPages.length <= 1 || pages_scores_by_url_[sortedPages[0].url] >= pages_scores_by_url_[sortedPages[sortedPages.length - 1].url],
+        sortedPages
+    );
 
     return sortedPages;
 }
 
 async function tokens_sorted_calc(tokens) {
-    return tokens.filter((token) => pagesByToken.size_get(token) > 1).sort((token1, token2) => pagesByToken.size_get(token1) > pagesByToken.size_get(token2));
+    return tokens
+        .filter((token) => pagesByToken.size_get(token) > 1)
+        .sort((token1, token2) => pagesByToken.size_get(token1) > pagesByToken.size_get(token2));
 }
 
 async function page_related_display(sortedPages, sortedTokens) {
@@ -580,7 +594,10 @@ function page_score(page) {
     if (page.tokens.length == 0) {
         return Number.MIN_SAFE_INTEGER / 2;
     }
-    const uniqueness = page.token_objects.map((token_object) => token_object.weight * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2)).reduce((a, b) => a + b) / page.tokens.length;
+    const uniqueness =
+        page.token_objects
+            .map((token_object) => token_object.weight * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2))
+            .reduce((a, b) => a + b) / page.tokens.length;
     const score = uniqueness + 0.001 * page.isBookmarked;
     console.assert(score);
     return score;
@@ -648,7 +665,8 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
         const bookmarkedScore = page.isBookmarked ? 1 : 0;
         const onTabScore = url_is_on_tab(url, tabs) ? 1 : 0;
         const normaledUniqueness = (page_score_element_by_url[url].uniqueness - minUniqueness) / (maxUniqueness - minUniqueness + 0.0000000000001);
-        const score_alone_normaled = (page_score_element_by_url[url].score_alone - score_alone_min) / (score_alone_max - score_alone_min + 0.0000000000001);
+        const score_alone_normaled =
+            (page_score_element_by_url[url].score_alone - score_alone_min) / (score_alone_max - score_alone_min + 0.0000000000001);
         scoreByUrl[url] = normaledUniqueness + score_alone_normaled - 0.05 * bookmarkedScore + 0.00001 * onTabScore;
     }
     return scoreByUrl;
@@ -716,7 +734,8 @@ async function tokens_calc(text) {
     return tokens;
 }
 Test.test_テキストを分かち書きしてトークンが取り出せること = async function () {
-    const text = 'このフレームワークでは、自社が置かれた状況をCustomer（顧客）、Competitor（競合）、Company（自社）の観点から情報を整理し、顧客に対する相対的な競合優位性を検証します。';
+    const text =
+        'このフレームワークでは、自社が置かれた状況をCustomer（顧客）、Competitor（競合）、Company（自社）の観点から情報を整理し、顧客に対する相対的な競合優位性を検証します。';
     const tokens = await tokens_calc(text);
     console.assert(
         JSON.stringify(tokens) ==
@@ -887,13 +906,29 @@ class Page {
         console.assert(text_content == null || text_content.constructor == String, text_content);
         console.assert(title.constructor == String, title);
         this.url = url;
-        this.__tab = tab;
-        this.title = title;
+        if (title != null) {
+            this.title = title;
+        }
         this.token_objects = [];
         this.tokens = tokens;
         if (text_content != null) {
             this.text_content = text_content;
         }
+    }
+
+    get title_key() {
+        return `{url: ${this.url}, title = true}`;
+    }
+
+    get title() {
+        return LocalStorage.loadItem(this.title_key).then((text) => text ?? '');
+    }
+
+    set title(text) {
+        Test.assert(text.constructor == String, text);
+        return LocalStorage.saveItem(this.title_key, text).catch((e) => {
+            console.warn(e);
+        });
     }
 
     get isBookmarked() {
@@ -917,13 +952,13 @@ class Page {
     }
 
     async save() {
-        LocalStorage.saveItem(this.url, await this.clone_without_text_content());
+        LocalStorage.saveItem(this.url, await this.clone_without_data_on_storage());
     }
 
     async clone() {
         const page_clone = {
             url: this.url,
-            title: this.title,
+            title: await this.title,
             tokens: this.tokens,
             text_content: await this.text_content,
             isBookmarked: this.isBookmarked,
@@ -932,10 +967,9 @@ class Page {
         return page_clone;
     }
 
-    clone_without_text_content() {
+    clone_without_data_on_storage() {
         const page_clone = {
             url: this.url,
-            title: this.title,
             tokens: this.tokens,
             isBookmarked: this.isBookmarked,
             favicon_url: this.favicon_url,
@@ -947,7 +981,13 @@ class Page {
         if (!loaded) {
             loaded = await LocalStorage.loadItem(url);
         }
-        if (loaded && loaded.title != undefined && loaded.title.constructor == String && loaded.tokens != undefined && loaded.tokens.constructor == Array) {
+        if (
+            loaded &&
+            loaded.title != undefined &&
+            loaded.title.constructor == String &&
+            loaded.tokens != undefined &&
+            loaded.tokens.constructor == Array
+        ) {
             return new Page(url, loaded.tokens, null, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
         }
 
@@ -976,7 +1016,13 @@ class Page {
 Page.token_object_by_text = new Map();
 
 Test.test_ページをストレージから複製できること1 = async function () {
-    const page = await Page.load('https://example.com', new Set(), { url: 'https://example.com', tokens: [], text_content: 'example', title: 'example', isBookmarked: false });
+    const page = await Page.load('https://example.com', new Set(), {
+        url: 'https://example.com',
+        tokens: [],
+        text_content: 'example',
+        title: 'example',
+        isBookmarked: false,
+    });
     Test.assert(page, page);
 };
 Test.test_ページをストレージから複製できること2 = async function () {
@@ -1057,7 +1103,6 @@ Test.test_履歴からページオブジェクトが生成できること = asyn
             (await page.text_content).constructor == String &&
                 page.url.constructor == String &&
                 page.tab == null &&
-                page.title.constructor == String &&
                 page.tokens.constructor == Array &&
                 page.isBookmarked.constructor == Boolean,
             page
@@ -1075,7 +1120,14 @@ Test.test_履歴を配列で取得できること = function () {
     (async () => {
         const histories = await history_array();
         for (let history of histories) {
-            console.assert(history.id != undefined && history.lastVisitTime && history.title != undefined && history.url != undefined && typeof history.visitCount == 'number', history);
+            console.assert(
+                history.id != undefined &&
+                    history.lastVisitTime &&
+                    history.title != undefined &&
+                    history.url != undefined &&
+                    typeof history.visitCount == 'number',
+                history
+            );
             console.assert(
                 history.id.constructor == String &&
                     history.lastVisitTime.constructor == Number &&
@@ -1110,7 +1162,15 @@ class Page_get {
         const page = new Page(url, tokens, innerText, title, bookmark, null, favicon_url);
 
         let a_elem_array = Array.from(htmlElem.getElementsByTagName('a'))
-            .filter((a) => a.href && a.href.includes('http') && a.innerText && !a.classList.toString().includes('button') && !a.id.includes('button') && !a.href.includes('search'))
+            .filter(
+                (a) =>
+                    a.href &&
+                    a.href.includes('http') &&
+                    a.innerText &&
+                    !a.classList.toString().includes('button') &&
+                    !a.id.includes('button') &&
+                    !a.href.includes('search')
+            )
             .slice(0, 300);
         const pages_from_link = await Promise.all(
             a_elem_array.map(async (a_elem) => {
@@ -1181,7 +1241,7 @@ Test.test_URLからページオブジェクトを生成できること = functio
     (async () => {
         const url = 'https://example.com/';
         const page = await Page_get.createPageFromUrl(url);
-        console.assert(page.title == 'Example Domain', page);
+        console.assert(await page.title == 'Example Domain', page);
         console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), page);
         console.assert(page.tokens.includes('illustrative'), page);
         console.assert(page.url == url, page);
