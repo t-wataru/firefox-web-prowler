@@ -56,12 +56,14 @@ async function init() {
 
     bookmarkedUrlSet = await bookmark_urlset();
     load().then(async () => {
-        if (BOOKMARK_LOAD) {
-            await pages_create_from_bookmarks_without_network();
-        }
-        if (HISTORY_LOAD) {
-            const histories = await history_array();
-            await pages_from_history(histories);
+        if (pageByUrl.size == 0) {
+            if (BOOKMARK_LOAD) {
+                await pages_create_from_bookmarks_without_network();
+            }
+            if (HISTORY_LOAD) {
+                const histories = await history_array();
+                await pages_from_history(histories);
+            }
         }
     });
 
@@ -203,22 +205,21 @@ Test.test_配列からランダムな要素が取り出されること = functio
 };
 
 async function load() {
-    const urls = (await LocalStorage.keys()).filter((url) => url.match(/^https?/g)).filter((url) => !url_is_exist(url));
-    if (!urls) {
-        return;
-    }
-    const promises = urls.map(async (url) => {
-        const page = await Page.load(url, bookmarkedUrlSet);
-        if (!page) {
-            return;
+    const keys = await LocalStorage.keys();
+    console.log(keys.filter((url) => url.match(/^https?/g) && !url_is_exist(url)));
+    const promises = keys.map(async (url) => {
+        if (url.match(/^https?/g) && !url_is_exist(url)) {
+            const page = await Page.load(url, bookmarkedUrlSet);
+            if (page) {
+                await page_register(page, false);
+            }
         }
-        await page_register(page);
     });
     await Promise.all(promises);
 }
 
 let savingTimeout;
-async function page_register(page) {
+async function page_register(page, page_save = true) {
     console.assert(page != undefined, page);
     console.assert(page.constructor == Page, page);
 
@@ -257,6 +258,9 @@ async function page_register(page) {
         pagesByToken.add(token, page);
     });
     pageByUrl.set(page.url, page);
+    if (page_save) {
+        page.save();
+    }
 
     console.assert(pageByUrl.get(page.url) == page);
     console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
@@ -438,7 +442,7 @@ async function pages_register_on_message(message, sender) {
         const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
         await page.async();
         await page_register(page);
-        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER)
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
     });
     await Promise.all(register_promises);
 }
