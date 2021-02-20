@@ -89,7 +89,7 @@ async function init() {
             return;
         }
         for (let i = 0; i < pages_number - PAGE_NUMBER_LIMIT; i++) {
-            await pages_free(PAGE_FREE_SELECT_NUMBER);
+            pages_free(PAGE_FREE_SELECT_NUMBER);
         }
         console.assert(pageByUrl.size == PAGE_NUMBER_LIMIT, pageByUrl.size);
     }, PAGE_FREE_INTERVAL_MS);
@@ -145,11 +145,11 @@ async function prowl() {
 
 init();
 
-async function pages_free(select_number, pageByUrl_ = pageByUrl) {
-    const pages_base = Object.values(pageByUrl_);
-    if (pages_base.length < select_number) {
+function pages_free(select_number, pageByUrl_ = pageByUrl) {
+    if (pageByUrl_.size < select_number) {
         return;
     }
+    const pages_base = Array.from(pageByUrl_.values());
     const pages = new Set();
     for (let i = 0; i < pages_base.length; i++) {
         const page = array_choice(pages_base);
@@ -175,6 +175,24 @@ async function pages_free(select_number, pageByUrl_ = pageByUrl) {
 
     page_delete(pages_sorted[0]);
 }
+Test.test_ダメなページが一つ削除されること = function () {
+    (async () => {
+        const pages = [
+            new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
+            new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
+            new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
+        ];
+        await Promise.all(
+            pages.map(async (p) => {
+                await p.async();
+                await page_register(p);
+            })
+        );
+        const number = pageByUrl.size;
+        pages_free(2);
+        console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
+    })();
+};
 
 function array_choice(array) {
     return array[Math.floor(Math.random() * array.length)];
