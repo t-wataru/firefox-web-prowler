@@ -176,22 +176,38 @@ function pages_free(select_number, pageByUrl_ = pageByUrl) {
     page_delete(pages_sorted[0]);
 }
 Test.test_ダメなページが一つ削除されること = function () {
-    (async () => {
-        const pages = [
-            new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
-            new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
-            new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
-        ];
-        await Promise.all(
-            pages.map(async (p) => {
-                await p.async();
-                await page_register(p);
-            })
-        );
-        const number = pageByUrl.size;
-        pages_free(2);
-        console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
-    })();
+    setTimeout(
+        (async () => {
+            const pages = [
+                new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
+                new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
+                new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
+            ];
+
+            for (page of pages) {
+                if (pageByUrl.has(page.url)) {
+                    page_delete(page);
+                }
+            }
+
+            await Promise.all(
+                pages.map(async (p) => {
+                    await p.async();
+                    await page_register(p);
+                })
+            );
+            const number = pageByUrl.size;
+            pages_free(2);
+            console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
+
+            for (page of pages) {
+                if (pageByUrl.has(page.url)) {
+                    page_delete(page);
+                }
+            }
+        })(),
+        1000
+    );
 };
 
 function array_choice(array) {
