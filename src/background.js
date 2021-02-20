@@ -224,7 +224,6 @@ Test.test_配列からランダムな要素が取り出されること = functio
 
 async function load() {
     const keys = await LocalStorage.keys();
-    console.log(keys.filter((url) => url.match(/^https?/g) && !url_is_exist(url)));
     const promises = keys.map(async (url) => {
         if (url.match(/^https?/g) && !url_is_exist(url)) {
             const page = await Page.load(url, bookmarkedUrlSet);
