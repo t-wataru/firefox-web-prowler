@@ -585,6 +585,10 @@ async function tokens_sorted_calc(tokens) {
 
 async function page_related_display(sortedPages, sortedTokens) {
     const pages = await Promise.all(sortedPages.map(async (page) => await page.clone()));
+    Test.assert(
+        !pages.find((it) => !it.title),
+        pages.find((it) => !it.title)
+    );
     Test.assert(!pages.find((it) => !it.url), pages);
     const message = { sortedPages: pages, sortedTokens: sortedTokens, type: 'display_related_page' };
     debugLog('message', message);
@@ -957,7 +961,7 @@ class Page {
         console.assert(text_content == null || text_content.constructor == String, text_content);
         console.assert(title.constructor == String, title);
         this.url = url;
-        if (title != null) {
+        if (title) {
             this.title = title;
         }
         this.token_objects = [];
