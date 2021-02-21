@@ -973,7 +973,7 @@ class Page {
         }
         this.token_objects = [];
         this.tokens = tokens;
-        if (text_content != null) {
+        if (text_content) {
             this.text_content = text_content;
         }
     }
