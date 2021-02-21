@@ -360,7 +360,7 @@ async function recommend_on_message(message, sender) {
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, sender.tab);
 
     const sortedPages = await pages_sorted_calc(page);
-    const sortedTokens = await tokens_sorted_calc(page.tokens);
+    const sortedTokens = await tokens_sorted_calc(page.token_objects);
     page_related_display(sortedPages, sortedTokens);
     関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(sortedPages);
 
@@ -577,10 +577,17 @@ async function pages_sorted_calc(page_target) {
     return sortedPages;
 }
 
-async function tokens_sorted_calc(tokens) {
-    return tokens
-        .filter((token) => pagesByToken.size_get(token) > 1)
-        .sort((token1, token2) => pagesByToken.size_get(token1) > pagesByToken.size_get(token2));
+async function tokens_sorted_calc(token_objects) {
+    return token_objects
+        .filter((token_object) => pagesByToken.size_get(token_object.string) > 1)
+        .filter((token_object) => PAGE_NUMBER_BY_TOKEN_LIMIT > pagesByToken.size_get(token_object.string))
+        .sort(
+            (token_object1, token_object2) =>
+                Math.pow(pagesByToken.size_get(token_object1.string), -2) * token_object1.weight -
+                Math.pow(pagesByToken.size_get(token_object2.string), -2) * token_object2.weight
+        )
+        .reverse()
+        .map((token_object) => token_object.string);
 }
 
 async function page_related_display(sortedPages, sortedTokens) {
