@@ -1048,7 +1048,7 @@ class Page {
             loaded = await LocalStorage.loadItem(url);
         }
         if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Array) {
-            return new Page(url, loaded.tokens, null, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
+            return new Page(url, loaded.tokens, loaded.text_content, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
         }
 
         return null;
