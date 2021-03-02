@@ -31,7 +31,7 @@ function recommend_and_register_request(text_request) {
 //   // recommend_request(text_query());
 // });
 
-window.onfocus = function (event) {
+window.addEventListener('focus', function (event) {
     debugLog('window.onfocus');
     innerText_before = '';
     recommend_request.textLines_before = '';
@@ -39,7 +39,7 @@ window.onfocus = function (event) {
 
     recommend_request(text_query());
     page_register_request(text_query());
-};
+});
 
 function text_query() {
     const _text_selection = text_selection();
