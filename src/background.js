@@ -18,6 +18,7 @@ const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
 const TOKEN_REWARD_ON_RECOMMEND = 0.001;
 const TOKEN_REWARD_ON_REGISTER = 0.01;
+const TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK = 0.1;
 const TOKEN_REWARD_ON_IGNORED = -0.1;
 const TOKEN_REWARD_ON_DELETE = -1.0;
 const TOKEN_REWARD_ON_SELECT = 1.0;
@@ -44,17 +45,54 @@ class PagesByToken extends Map {
     }
 }
 
+class Token_Object_By_Text {
+    constructor() {
+        this.map = new Map();
+        this.SAVE_DELAY_MS = 5 * 1000;
+        this.KEY_STORAGE = 'token_object_by_text';
+    }
+
+    save_with_timeout() {
+        clearTimeout(this.timeout);
+        this.timeout = setTimeout(() => {
+            this.save_async();
+        }, this.SAVE_DELAY_MS);
+    }
+
+    async save_async() {
+        await LocalStorage.saveItem(this.KEY_STORAGE, this.map);
+    }
+
+    async load_async() {
+        const loaded = await LocalStorage.loadItem(this.KEY_STORAGE);
+        if (loaded) {
+            this.map = loaded;
+        }
+    }
+
+    set(key, value) {
+        this.map.set(key, value);
+        this.save_with_timeout();
+    }
+
+    get(key) {
+        return this.map.get(key);
+    }
+}
+
 page_get_queue = new Set();
 tokenizer = new Tokenizer();
 pagesByToken = new PagesByToken();
 pageByUrl = new Map();
 bookmarkedUrlSet = new Set();
 tokens_ng = new Set();
+token_object_by_text = new Token_Object_By_Text();
 
 async function init() {
     debugLog('init...');
 
     bookmarkedUrlSet = await bookmark_urlset();
+    await token_object_by_text.load_async();
     load().then(async () => {
         if (pageByUrl.size == 0) {
             if (BOOKMARK_LOAD) {
@@ -863,6 +901,7 @@ async function pages_create_from_bookmarks_without_network() {
     debugLog('pages from bookmark', pages);
     for (page of pages.filter((p) => !page_is_exist(p))) {
         await page_register(page);
+        page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK);
     }
     debugLog('pagesByToken', pagesByToken);
     debugLog('...createPagesFromBookmarksWithoutNetwork');
@@ -1008,10 +1047,10 @@ class Page {
     set tokens(text_array) {
         this.token_objects = [];
         for (const text of text_array) {
-            let token_object = Page.token_object_by_text.get(text);
+            let token_object = token_object_by_text.get(text);
             if (!token_object) {
                 token_object = new Token(text);
-                Page.token_object_by_text.set(text, token_object);
+                token_object_by_text.set(text, token_object);
             }
             this.token_objects.push(token_object);
         }
@@ -1073,14 +1112,11 @@ class Page {
         return await LocalStorage.delete(this.url);
     }
 }
-Page.token_object_by_text = new Map();
-
 Test.test_ページをストレージから複製できること1 = async function () {
-    const page = await Page.load('https://example.com', new Set(), {
-        url: 'https://example.com',
-        tokens: [],
-        text_content: 'example',
-        title: 'example',
+    const page = await Page.load('http://100en.blog.jp/', new Set(), {
+        url: 'http://100en.blog.jp/',
+        tokens: ['文具'],
+        title: '100円ショップ文具術02',
         isBookmarked: false,
     });
     Test.assert(page, page);
@@ -1210,6 +1246,8 @@ class Page_get {
 
         /*Scriptタグを削除。bodyタグ内にScriptタグがあると、JSがinnerTextに入り込む*/
         [...body.getElementsByTagName('script')].forEach((e) => e.remove());
+        [...body.getElementsByTagName('link')].forEach((e) => e.remove());
+        [...body.getElementsByTagName('style')].forEach((e) => e.remove());
 
         const og_contents = Array.from(body.querySelectorAll('meta[content]'))
             .map((og) => og.content)

@@ -18,9 +18,9 @@ class LocalStorage {
 }
 Test.test_LocalStorageでデータを保存できること = function () {
     (async () => {
-        const key = "key_text_test";
-        const value = "value text";
-        await LocalStorage.saveItem(key, value)
+        const key = 'key_text_test';
+        const value = 'value text';
+        await LocalStorage.saveItem(key, value);
 
         const result_loadItem = await LocalStorage.loadItem(key);
         console.assert(result_loadItem == value, result_loadItem);
@@ -33,22 +33,34 @@ Test.test_LocalStorageでデータを保存できること = function () {
         const keys = await LocalStorage.keys();
         console.assert(!keys.includes(key), keys);
     })();
-}
+};
 Test.test_LocalStorageでオブジェクトを保存できること = function () {
     (async () => {
-        const key = "obj_test";
-        const value = { text: "value text" };
-        await LocalStorage.saveItem(key, value)
+        const key = 'obj_test';
+        const value = { text: 'value text' };
+        await LocalStorage.saveItem(key, value);
         const result = await LocalStorage.loadItem(key);
         console.assert(result.text === value.text, result);
     })();
-}
+};
 Test.test_LocalStorageででかいオブジェクトを保存できること = function () {
     (async () => {
-        const key = "big_obj_test";
-        const value = { text: "value text".repeat(1000) };
-        await LocalStorage.saveItem(key, value)
+        const key = 'big_obj_test';
+        const value = { text: 'value text'.repeat(1000) };
+        await LocalStorage.saveItem(key, value);
         const result = await LocalStorage.loadItem(key);
         console.assert(result.text === value.text, result);
     })();
-}
+};
+Test.test_LocalStorageでMapを保存できること = function () {
+    (async () => {
+        const key = 'map_test';
+        const value = new Map([
+            ['key1', 'value1'],
+            ['key2', 'key3'],
+        ]);
+        await LocalStorage.saveItem(key, value);
+        const result = await LocalStorage.loadItem(key);
+        console.assert(JSON.stringify(result) == JSON.stringify(value), result, value);
+    })();
+};
