@@ -190,7 +190,17 @@ function pages_free(select_number, pageByUrl_ = pageByUrl) {
     const pages_base = Array.from(pageByUrl_.values());
     const pages = new Set();
     for (let i = 0; i < pages_base.length; i++) {
-        const page = array_choice(pages_base);
+        const page_random_index = index_random(pages_base);
+        let page = null;
+        for (let j = 0; j <= pages_base.length; j++) {
+            const index = (page_random_index + j) % pages_base.length;
+            if (!pages.has(pages_base[index])) {
+                page = pages_base[index];
+                break;
+            }
+        }
+        console.assert(page);
+
         pages.add(page);
 
         if (pages.size >= select_number) {
@@ -216,37 +226,56 @@ function pages_free(select_number, pageByUrl_ = pageByUrl) {
 Test.test_ダメなページが一つ削除されること = function () {
     setTimeout(
         (async () => {
-            const pages = [
-                new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
-                new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
-                new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
-            ];
+            for (let i = 0; i < 100; i++) {
+                const pages = [
+                    new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
+                    new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
+                    new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
+                ];
 
-            for (page of pages) {
-                if (pageByUrl.has(page.url)) {
-                    page_delete(page);
+                for (page of pages) {
+                    if (pageByUrl.has(page.url)) {
+                        page_delete(page);
+                    }
                 }
-            }
 
-            await Promise.all(
-                pages.map(async (p) => {
-                    await p.async();
-                    await page_register(p);
-                })
-            );
-            const number = pageByUrl.size;
-            pages_free(2);
-            console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
+                await Promise.all(
+                    pages.map(async (p) => {
+                        await p.async();
+                        await page_register(p);
+                    })
+                );
+                const number = pageByUrl.size;
+                pages_free(2);
+                console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
 
-            for (page of pages) {
-                if (pageByUrl.has(page.url)) {
-                    page_delete(page);
+                for (page of pages) {
+                    if (pageByUrl.has(page.url)) {
+                        page_delete(page);
+                    }
                 }
             }
         })(),
         1000
     );
 };
+
+function index_random(array) {
+    return randInt(0, array.length - 1);
+}
+Test.test_配列からランダムな添え字が返されること = function () {
+    const array = new Array(1000).map((it) => 0);
+    for (let i = 0; i < 10000; i++) {
+        const index = index_random(array);
+        console.assert(0 <= index && index < array.length, index);
+    }
+};
+
+function randInt(min, max) {
+    var range = max - min;
+    var rand = Math.floor(Math.random() * (range + 1));
+    return min + rand;
+}
 
 function array_choice(array) {
     return array[Math.floor(Math.random() * array.length)];
