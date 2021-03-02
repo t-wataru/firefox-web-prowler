@@ -21,6 +21,7 @@ const TOKEN_REWARD_ON_REGISTER = 0.01;
 const TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK = 0.1;
 const TOKEN_REWARD_ON_IGNORED = -0.1;
 const TOKEN_REWARD_ON_DELETE = -1.0;
+const TOKEN_REWARD_ON_TAB_DELETE = -0.1;
 const TOKEN_REWARD_ON_SELECT = 1.0;
 
 class PagesByToken extends Map {
@@ -116,6 +117,8 @@ async function init() {
     browser.bookmarks.onRemoved.addListener(bookmark_urlset_reset);
     browser.bookmarks.onChanged.addListener(bookmark_urlset_reset);
 
+    browser.tabs.onRemoved.addListener(token_learn_on_tab_delete);
+
     setInterval(prowl, PAGE_GET_INTERVAL_MS);
 
     setInterval(async () => {
@@ -132,6 +135,18 @@ async function init() {
         console.assert(pageByUrl.size == PAGE_NUMBER_LIMIT, pageByUrl.size);
     }, PAGE_FREE_INTERVAL_MS);
     debugLog('...init');
+}
+
+async function token_learn_on_tab_delete(tabId, removeInfo) {
+    const tab = (await tabs()).find((tab) => tab.id == tabId);
+    if (!tab) {
+        return;
+    }
+    const url = tab.url;
+    console.assert(url, url);
+    const page = pageByUrl.get(url);
+    console.assert(page);
+    page_tokens_weight_learn(page, TOKEN_REWARD_ON_TAB_DELETE);
 }
 
 async function recommend_selected_on_message(message, sender) {
