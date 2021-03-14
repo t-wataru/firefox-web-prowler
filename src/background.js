@@ -145,7 +145,9 @@ async function token_learn_on_tab_delete(tabId, removeInfo) {
     const url = tab.url;
     console.assert(url, url);
     const page = pageByUrl.get(url);
-    console.assert(page);
+    if (!page) {
+        return;
+    }
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_TAB_DELETE);
 }
 
@@ -1298,7 +1300,10 @@ class Page_get {
             .join(' ');
         const innerText = body.innerText + og_contents;
         const titleElem = htmlElem.querySelector('title');
-        const title = titleElem ? titleElem.innerText : '';
+        if (!titleElem) {
+            return;
+        }
+        const title = titleElem.innerText;
         const tokens = (await tokens_calc(title + '\n' + innerText)).concat(tokens_from_url(url));
         const bookmark = await url_is_bookmarked(url);
         const favicon_url = htmlElem.querySelector("link[rel~='icon']")?.href;
