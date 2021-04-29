@@ -1,4 +1,4 @@
-let debug = false;
+let debug = true;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -645,9 +645,9 @@ async function pages_sorted_calc(page_target) {
     urlset_list.forEach((tmpUrlSet) => {
         for (let url of tmpUrlSet) {
             urlset.add(url);
-        }
-        if (urlset.size > PAGE_DISPLAY_LENGTH * 4) {
-            return;
+            if (urlset.size > PAGE_DISPLAY_LENGTH * 2) {
+                return;
+            }
         }
     });
     const pages_scores_by_url_ = await pages_scores_by_url(page_target, urlset, urlset_list).catch((e) => console.error(e));
@@ -656,8 +656,8 @@ async function pages_sorted_calc(page_target) {
 
     const sortedPages = Array.from(urlset)
         .sort((url1, url2) => pages_scores_by_url_[url2] - pages_scores_by_url_[url1])
-        .map((url) => pageByUrl.get(url))
-        .slice(0, PAGE_DISPLAY_LENGTH);
+        .slice(0, PAGE_DISPLAY_LENGTH)
+        .map((url) => pageByUrl.get(url));
 
     console.assert(
         sortedPages.length <= 1 || pages_scores_by_url_[sortedPages[0].url] >= pages_scores_by_url_[sortedPages[sortedPages.length - 1].url],
@@ -668,7 +668,7 @@ async function pages_sorted_calc(page_target) {
 }
 
 async function tokens_sorted_calc(token_objects) {
-    return token_objects
+    return Array.from(token_objects)
         .filter((token_object) => pagesByToken.size_get(token_object.string) > 1)
         .filter((token_object) => PAGE_NUMBER_BY_TOKEN_LIMIT > pagesByToken.size_get(token_object.string))
         .sort(
@@ -747,7 +747,7 @@ function page_score(page) {
         return Number.MIN_SAFE_INTEGER / 2;
     }
     const uniqueness =
-        page.token_objects
+        Array.from(page.token_objects)
             .map((token_object) => token_object.weight * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2))
             .reduce((a, b) => a + b) / page.tokens.length;
     const score = uniqueness + 0.001 * page.isBookmarked;
@@ -770,16 +770,15 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
         page_score_element_by_url[url].uniqueness = 0;
     }
 
-    const token_objects_target = targetPage.token_objects.filter((token_object) => token_object.string.length > 1);
+    const token_objects_target = Array.from(targetPage.token_objects).filter((token_object) => token_object.string.length > 1);
     for (const token_object of token_objects_target) {
         if (!pagesByToken.has(token_object.string)) {
             continue;
         }
-        const urlset_tmp = urls_get_by_token(token_object.string);
-        const size = urlset_tmp.size + 1;
-        const uniqueness = 1 / ((size + 1) * (size + 1));
-        for (const url of urlset_tmp) {
-            if (!urlSet.has(url)) {
+        const size = pagesByToken.size_get(token_object.string) + 1;
+        const uniqueness = 1 / (size * size);
+        for (const url of urlSet) {
+            if (pageByUrl.get(url).token_objects.has(token_object)) {
                 continue;
             }
             const weight = token_object.weight;
@@ -1064,7 +1063,7 @@ class Page {
         if (title) {
             this.title = title;
         }
-        this.token_objects = [];
+        this.token_objects = new Set();
         this.tokens = tokens;
         if (text_content) {
             this.text_content = text_content;
@@ -1095,18 +1094,18 @@ class Page {
     }
 
     get tokens() {
-        return this.token_objects.map((token_object) => token_object.string);
+        return Array.from(this.token_objects).map((token_object) => token_object.string);
     }
 
     set tokens(text_array) {
-        this.token_objects = [];
+        this.token_objects = new Set();
         for (const text of text_array) {
             let token_object = token_object_by_text.get(text);
             if (!token_object) {
                 token_object = new Token(text);
                 token_object_by_text.set(text, token_object);
             }
-            this.token_objects.push(token_object);
+            this.token_objects.add(token_object);
         }
     }
 
