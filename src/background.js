@@ -50,6 +50,9 @@ class Token_Object_By_Text {
     constructor() {
         this.map = new Map();
         this.SAVE_DELAY_MS = 5 * 1000;
+        this.store = localforage.createInstance({
+            name: 'Token_Object_By_Text',
+        });
         this.KEY_STORAGE = 'token_object_by_text';
     }
 
@@ -61,11 +64,11 @@ class Token_Object_By_Text {
     }
 
     async save_async() {
-        await LocalStorage.saveItem(this.KEY_STORAGE, this.map);
+        await this.store.setItem(this.KEY_STORAGE, this.map);
     }
 
     async load_async() {
-        const loaded = await LocalStorage.loadItem(this.KEY_STORAGE);
+        const loaded = await this.store.getItem(this.KEY_STORAGE);
         if (loaded) {
             this.map = loaded;
         }
@@ -94,7 +97,7 @@ async function init() {
 
     bookmarkedUrlSet = await bookmark_urlset();
     await token_object_by_text.load_async();
-    load().then(async () => {
+    await load().then(async () => {
         if (pageByUrl.size == 0) {
             if (BOOKMARK_LOAD) {
                 await pages_create_from_bookmarks_without_network();
@@ -162,7 +165,7 @@ async function recommend_selected_on_message(message, sender) {
 
 function page_tokens_weight_learn(page, reward) {
     const LEARNING_ALPHA = 0.1;
-    for (token_object of page.token_objects) {
+    for (const token_object of page.token_objects) {
         const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2);
         token_object.weight -= weight_delta;
     }
@@ -250,7 +253,7 @@ Test.test_ダメなページが一つ削除されること = function () {
                     new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
                 ];
 
-                for (page of pages) {
+                for (const page of pages) {
                     if (pageByUrl.has(page.url)) {
                         page_delete(page);
                     }
@@ -266,7 +269,7 @@ Test.test_ダメなページが一つ削除されること = function () {
                 pages_free(2);
                 console.assert(pageByUrl.size - number == -1, pageByUrl.size, number);
 
-                for (page of pages) {
+                for (const page of pages) {
                     if (pageByUrl.has(page.url)) {
                         page_delete(page);
                     }
@@ -323,7 +326,7 @@ Test.test_配列からランダムな要素が取り出されること = functio
 };
 
 async function load() {
-    const keys = await LocalStorage.keys();
+    const keys = await Page.store.keys();
     const promises = keys.map(async (url) => {
         if (url.match(/^https?/g) && !url_is_exist(url)) {
             const page = await Page.load(url, bookmarkedUrlSet);
@@ -403,7 +406,7 @@ function tokens_too_many_set_ng(token_array) {
 
 function token_set_ng(token) {
     tokens_ng.add(token);
-    for (page of pagesByToken.get(token)) {
+    for (const page of pagesByToken.get(token)) {
         page.tokens = page.tokens.filter((token) => !tokens_ng.has(token));
         if (page.tokens.length == 0) {
             page_delete(page);
@@ -418,7 +421,7 @@ function token_set_ng(token) {
 
 function page_delete(page_) {
     const page = pageByUrl.get(page_.url);
-    for (pages of pagesByToken.values()) {
+    for (const pages of pagesByToken.values()) {
         pages.delete(page);
         pages.delete(page_);
     }
@@ -444,7 +447,10 @@ async function recommend_on_message(message, sender) {
     const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, sender.tab);
 
     const sortedPages = await pages_sorted_calc(page);
+    debugLog('sortedPages', sortedPages);
     const sortedTokens = await tokens_sorted_calc(page.token_objects);
+    debugLog('sortedTokens', sortedTokens);
+
     page_related_display(sortedPages, sortedTokens);
     関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(sortedPages);
 
@@ -457,7 +463,7 @@ async function recommend_on_message(message, sender) {
 }
 
 function pages_tokens_weight_reduce(pages) {
-    for (page of pages) {
+    for (const page of pages) {
         page_tokens_weight_learn(page, TOKEN_REWARD_ON_IGNORED);
     }
 }
@@ -524,7 +530,7 @@ function pages_delete_on_message(message, sender) {
         return;
     }
     const urls = message.pages.map((page) => page.url);
-    for (url of urls) {
+    for (const url of urls) {
         const page = pageByUrl.get(url);
         if (!page) {
             continue;
@@ -570,7 +576,7 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
             { url: 'https://example2.com/', text_content: 'example2 text vcrfxvtbgytbgysed', title: 'example2 site' },
         ];
 
-        for (page_ of pages) {
+        for (const page_ of pages) {
             const page = pageByUrl.get(page_.url);
             if (page) {
                 page_delete(page);
@@ -580,7 +586,7 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
         const message = { pages: pages, type: 'registers' };
         await pages_register_on_message(message, null);
 
-        for (page_ of pages) {
+        for (const page_ of pages) {
             const page = pageByUrl.get(page_.url);
             console.assert(page, pageByUrl);
             console.assert(pageByUrl.get(page.url) == page, page);
@@ -589,7 +595,7 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
         console.assert(pagesByToken.get('azqwsxedcrfvtbgy'));
         console.assert(pagesByToken.get('vcrfxvtbgytbgysed'));
 
-        for (page_ of pages) {
+        for (const page_ of pages) {
             const page = pageByUrl.get(page_.url);
             page_delete(page);
         }
@@ -609,7 +615,7 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         await pages_register_on_message(message, null);
         await sleep(1000);
 
-        for (page_ of pages) {
+        for (const page_ of pages) {
             const page = pageByUrl.get(page_.url);
             console.assert(pageByUrl.get(page.url) == page, page);
             console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
@@ -622,7 +628,7 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
 function urls_get_by_token(token) {
     const urls = new Set();
     const pages = pagesByToken.get(token);
-    for (page of pages) {
+    for (const page of pages) {
         urls.add(page.url);
     }
     return urls;
@@ -704,7 +710,7 @@ function page_get_queue_resize() {
 
 function page_get_queue_sort() {
     const page_score_by_page = new Map();
-    for (page of page_get_queue) {
+    for (const page of page_get_queue) {
         page_score_by_page.set(page, page_score(page));
     }
     page_get_queue = new Set(Array.from(page_get_queue).sort((a, b) => page_score_by_page.get(b) - page_score_by_page.get(a)));
@@ -712,7 +718,7 @@ function page_get_queue_sort() {
 
 async function 関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる_関数内で(sortedPages) {
     const pages_contents_getting = [];
-    for (page of sortedPages) {
+    for (const page of sortedPages) {
         if (pages_contents_getting.length > PAGE_CONTENTS_GET_SIZE) {
             break;
         }
@@ -756,7 +762,7 @@ function page_score(page) {
  */
 async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
     const page_score_element_by_url = {};
-    for (url of urlSet) {
+    for (const url of urlSet) {
         page_score_element_by_url[url] = {};
     }
 
@@ -765,14 +771,14 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
     }
 
     const token_objects_target = targetPage.token_objects.filter((token_object) => token_object.string.length > 1);
-    for (token_object of token_objects_target) {
+    for (const token_object of token_objects_target) {
         if (!pagesByToken.has(token_object.string)) {
             continue;
         }
         const urlset_tmp = urls_get_by_token(token_object.string);
         const size = urlset_tmp.size + 1;
         const uniqueness = 1 / ((size + 1) * (size + 1));
-        for (url of urlset_tmp) {
+        for (const url of urlset_tmp) {
             if (!urlSet.has(url)) {
                 continue;
             }
@@ -781,7 +787,8 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
         }
     }
 
-    for (url of urlSet) {
+    for (const url of urlSet) {
+        const page = pageByUrl.get(url);
         page_score_element_by_url[url].score_alone = page_score(page);
     }
 
@@ -791,7 +798,7 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
 
     let score_alone_max = Number.MIN_SAFE_INTEGER;
     let score_alone_min = Number.MAX_SAFE_INTEGER;
-    for (score_elem of Object.values(page_score_element_by_url)) {
+    for (const score_elem of Object.values(page_score_element_by_url)) {
         if (score_alone_max < score_elem.score_alone) {
             score_alone_max = score_elem.score_alone;
         }
@@ -803,7 +810,7 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
     const scoreByUrl = {};
     const tabs = await browser.tabs.query({});
     console.assert(tabs.length > 0, tabs);
-    for (let url of urlSet) {
+    for (const url of urlSet) {
         const page = pageByUrl.get(url);
         if (!page) {
             throw `page is ${page}, url i ${url}`;
@@ -837,12 +844,12 @@ function text_complexity_calc(text) {
 
 function urlset_related_to_page(targetPage) {
     const urlSet = new Set();
-    for (token of targetPage.tokens) {
-        for (page of pagesByToken.get(token)) {
+    for (const token of targetPage.tokens) {
+        for (const page of pagesByToken.get(token)) {
             urlSet.add(page.url);
         }
     }
-    for (url of urlSet) {
+    for (const url of urlSet) {
         console.assert(pageByUrl.get(url), { url: url, pageByUrl: pageByUrl, targetPage: targetPage });
     }
     return urlSet;
@@ -945,7 +952,7 @@ async function pages_create_from_bookmarks_without_network() {
     debugLog('createPagesFromBookmarksWithoutNetwork...');
     const pages = await bookmark_page_list();
     debugLog('pages from bookmark', pages);
-    for (page of pages.filter((p) => !page_is_exist(p))) {
+    for (const page of pages.filter((p) => !page_is_exist(p))) {
         await page_register(page);
         page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK);
     }
@@ -959,7 +966,7 @@ async function bookmark_page_list() {
         .filter((b) => b.url)
         .filter((b) => uri_is_decodable(b.url));
     const pages = [];
-    for (b of bookmarks) {
+    for (const b of bookmarks) {
         const tokens = (await tokens_calc(b.title)).concat(tokens_from_url(b.url));
         pages.push(new Page(b.url, tokens, '', b.title, true, null));
     }
@@ -1053,6 +1060,7 @@ class Page {
         console.assert(text_content == null || text_content.constructor == String, text_content);
         console.assert(title.constructor == String, title);
         this.url = url;
+
         if (title) {
             this.title = title;
         }
@@ -1072,12 +1080,12 @@ class Page {
     }
 
     get title() {
-        return LocalStorage.loadItem(this.title_key).then((text) => text ?? '');
+        return Page.store.getItem(this.title_key).then((text) => text ?? '');
     }
 
     set title(text) {
         Test.assert(text.constructor == String, text);
-        this.title_promise = LocalStorage.saveItem(this.title_key, text).catch((e) => {
+        this.title_promise = Page.store.setItem(this.title_key, text).catch((e) => {
             console.warn(e);
         });
     }
@@ -1103,7 +1111,7 @@ class Page {
     }
 
     async save() {
-        LocalStorage.saveItem(this.url, await this.clone_without_data_on_storage());
+        Page.store.setItem(this.url, await this.clone_without_data_on_storage());
     }
 
     async clone() {
@@ -1130,7 +1138,7 @@ class Page {
 
     static async load(url, bookmarkedUrlSet_, loaded = undefined) {
         if (!loaded) {
-            loaded = await LocalStorage.loadItem(url);
+            loaded = await Page.store.getItem(url);
         }
         if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Array) {
             return new Page(url, loaded.tokens, loaded.text_content, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
@@ -1144,20 +1152,23 @@ class Page {
     }
 
     get text_content() {
-        return LocalStorage.loadItem(this.key_storage()).then((text) => text ?? '');
+        return Page.store.getItem(this.key_storage()).then((text) => text ?? '');
     }
 
     set text_content(value) {
         Test.assert(value.constructor == String, value);
-        this.text_content_promise = LocalStorage.saveItem(this.key_storage(), value).catch((e) => {
+        this.text_content_promise = Page.store.setItem(this.key_storage(), value).catch((e) => {
             console.warn(e);
         });
     }
 
     async delete() {
-        return await LocalStorage.delete(this.url);
+        return await Page.store.delete(this.url);
     }
 }
+Page.store = localforage.createInstance({
+    name: 'Page',
+});
 Test.test_ページをストレージから複製できること1 = async function () {
     const page = await Page.load('http://100en.blog.jp/', new Set(), {
         url: 'http://100en.blog.jp/',
