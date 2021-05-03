@@ -441,11 +441,28 @@ async function recommend_on_message(message, sender) {
     debugLog('message', message);
 
     const title = '';
-    const innerText = message.page.text_request;
-    const tokens = await tokens_calc(title + '\n' + innerText);
+    const text_content = message.page.text_request;
+    const tokens = await tokens_calc(title + '\n' + text_content);
+    const token_objects = new Set();
+    for (const token of tokens) {
+        let token_object = token_object_by_text.get(token);
+        if (!token_object) {
+            token_object = new Token(token);
+            token_object_by_text.set(token, token_object);
+        }
+        token_objects.add(token_object);
+    }
     const isBookmarked = bookmarkedUrlSet.has(message.page.url);
-    const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, sender.tab);
+    const page = {
+        url: message.page.url,
+        tokens: tokens,
+        token_objects: token_objects,
+        text_content: text_content,
+        title: title,
+        isBookmarked: isBookmarked,
+    };
 
+    debugLog('url', page.url);
     const sortedPages = await pages_sorted_calc(page);
     debugLog('sortedPages', sortedPages);
     const sortedTokens = await tokens_sorted_calc(page.token_objects);
@@ -770,7 +787,13 @@ async function pages_scores_by_url(targetPage, urlSet, urlSetList) {
         page_score_element_by_url[url].uniqueness = 0;
     }
 
-    const token_objects_target = Array.from(targetPage.token_objects).filter((token_object) => token_object.string.length > 1);
+    const token_objects_target = [];
+    for (token_object of targetPage.token_objects) {
+        if (token_object.string.length > 1) {
+            token_objects_target.push(token_object);
+        }
+    }
+
     for (const token_object of token_objects_target) {
         if (!pagesByToken.has(token_object.string)) {
             continue;
@@ -1162,7 +1185,7 @@ class Page {
     }
 
     async delete() {
-        return await Page.store.delete(this.url);
+        return await Page.store.removeItem(this.url);
     }
 }
 Page.store = localforage.createInstance({
