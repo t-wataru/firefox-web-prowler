@@ -1372,12 +1372,12 @@ class Page_get {
         return page;
     }
 
+    static parser = new DOMParser();
     static _parseHTML(htmlString) {
         /**
          * https://stackoverflow.com/questions/10585029/parse-an-html-string-with-js
          */
-        var parser = new DOMParser();
-        var htmlDoc = parser.parseFromString(htmlString, 'text/html');
+        var htmlDoc = this.parser.parseFromString(htmlString, 'text/html');
         if (!htmlDoc) {
             throw `missed parsing html : ${htmlString}`;
         }
@@ -1415,8 +1415,8 @@ Test.test_URLからページオブジェクトを生成できること = functio
     (async () => {
         const url = 'https://example.com/';
         const page = await Page_get.createPageFromUrl(url);
-        console.assert((await page.title) == 'Example Domain', page);
-        console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), page);
+        console.assert((await page.title) == 'Example Domain', await page.title);
+        console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), await page.text_content);
         console.assert(page.tokens.includes('illustrative'), page);
         console.assert(page.url == url, page);
     })();
@@ -1426,7 +1426,7 @@ Test.test_body内のscriptは消すこと = function () {
     (async () => {
         const url = 'https://www.youtube.com/watch?v=lXOyo_INVfk';
         const page = await Page_get.createPageFromUrl(url);
-        Test.assert(!(await page.text_content).includes('{'), page);
+        Test.assert(!(await page.text_content).includes('{'), await page.text_content);
     })();
 };
 
