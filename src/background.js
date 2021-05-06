@@ -1,10 +1,10 @@
-let debug = true;
+let debug = false;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
 
 const SAVE_DELAY = 60 * 1000;
-const PAGE_GET_INTERVAL_MS = 20 * 1000;
+const PAGE_GET_INTERVAL_MS = 4 * 1000;
 const XHR_TIMEOUT_MS = 3 * 1000;
 const PAGE_DISPLAY_LENGTH = 40;
 const PAGE_NUMBER_BY_TOKEN_LIMIT = 40;
@@ -132,9 +132,8 @@ async function init() {
         if (pages_number <= PAGE_FREE_SELECT_NUMBER) {
             return;
         }
-        for (let i = 0; i < pages_number - PAGE_NUMBER_LIMIT; i++) {
-            pages_free(PAGE_FREE_SELECT_NUMBER);
-        }
+        const page_free_select_number = (pages_number - PAGE_NUMBER_LIMIT) * 3;
+        pages_free(page_free_select_number, pages_number - PAGE_NUMBER_LIMIT);
         console.assert(pageByUrl.size == PAGE_NUMBER_LIMIT, pageByUrl.size);
     }, PAGE_FREE_INTERVAL_MS);
     debugLog('...init');
@@ -203,11 +202,11 @@ async function prowl() {
 
 init();
 
-function pages_free(select_number, pageByUrl_ = pageByUrl) {
-    if (pageByUrl_.size < select_number) {
+function pages_free(select_number, free_number = 1) {
+    if (pageByUrl.size < select_number) {
         return;
     }
-    const pages_base = Array.from(pageByUrl_.values());
+    const pages_base = Array.from(pageByUrl.values());
     const pages = new Set();
     for (let i = 0; i < pages_base.length; i++) {
         const page_random_index = index_random(pages_base);
@@ -227,21 +226,15 @@ function pages_free(select_number, pageByUrl_ = pageByUrl) {
             break;
         }
     }
-    console.assert(pages.size == select_number, pages.size);
 
     const page_score_by_page = new Map();
     [...pages].map((page) => [page, page_score(page)]).forEach(([page, score]) => page_score_by_page.set(page, score));
-    console.assert([...page_score_by_page.values()].filter((score) => score == Infinity).length == 0, page_score_by_page);
 
     const pages_sorted = [...pages].sort((p1, p2) => page_score_by_page.get(p1) - page_score_by_page.get(p2));
-    console.assert(
-        pages_sorted[0] != pages_sorted[select_number - 1] && page_score(pages_sorted[0]) <= page_score(pages_sorted[select_number - 1]),
-        page_score(pages_sorted[0]),
-        page_score(pages_sorted[select_number - 1])
-    );
-    console.assert(pages_sorted.length == select_number, { pages_sorted: pages_sorted, pageByUrl_: pageByUrl_ });
 
-    page_delete(pages_sorted[0]);
+    for (let i = 0; i < free_number; i++) {
+        page_delete(pages_sorted[i]);
+    }
 }
 Test.test_ダメなページが一つ削除されること = function () {
     setTimeout(
