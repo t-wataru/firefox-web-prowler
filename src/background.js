@@ -208,30 +208,32 @@ function pages_free(select_number, free_number = 1) {
         return;
     }
     const pages_base = Array.from(pageByUrl.values());
-    const pages = new Set();
+    const page_set = new Set();
     for (let i = 0; i < pages_base.length; i++) {
         const page_random_index = index_random(pages_base);
         let page = null;
         for (let j = 0; j <= pages_base.length; j++) {
             const index = (page_random_index + j) % pages_base.length;
-            if (!pages.has(pages_base[index])) {
+            if (!page_set.has(pages_base[index])) {
                 page = pages_base[index];
                 break;
             }
         }
         console.assert(page);
 
-        pages.add(page);
+        page_set.add(page);
 
-        if (pages.size >= select_number) {
+        if (page_set.size >= select_number) {
             break;
         }
     }
 
     const page_score_by_page = new Map();
-    [...pages].map((page) => [page, page_score(page)]).forEach(([page, score]) => page_score_by_page.set(page, score));
+    for (const page of page_set) {
+        page_score_by_page.set(page, page_score(page));
+    }
 
-    const pages_sorted = [...pages].sort((p1, p2) => page_score_by_page.get(p1) - page_score_by_page.get(p2));
+    const pages_sorted = [...page_set].sort((p1, p2) => page_score_by_page.get(p1) - page_score_by_page.get(p2));
 
     for (let i = 0; i < free_number; i++) {
         page_delete(pages_sorted[i]);
