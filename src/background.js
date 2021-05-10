@@ -676,8 +676,8 @@ async function pages_sorted_calc(page_target) {
     const urlset_list = page_target.tokens
         .filter((token) => pagesByToken.size_get(token) > 1)
         .filter((token) => PAGE_NUMBER_BY_TOKEN_LIMIT > pagesByToken.size_get(token))
-        .map((token) => urls_get_by_token(token))
-        .sort((set1, set2) => set1.size > set2.size);
+        .sort((token1, token2) => token_score(token1) > token_score(token2))
+        .map((token) => urls_get_by_token(token));
 
     const urlset = new Set();
     urlset_list.forEach((tmpUrlSet) => {
