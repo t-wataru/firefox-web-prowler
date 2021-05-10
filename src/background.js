@@ -16,6 +16,7 @@ const PAGE_NUMBER_LIMIT = 100000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
+const TOKENS_SCORE_LIMIT = 0.01;
 const TOKEN_REWARD_ON_RECOMMEND = 0.001;
 const TOKEN_REWARD_ON_REGISTER = 0.01;
 const TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK = 0.1;
@@ -336,22 +337,6 @@ async function page_register(page, page_save = true) {
     console.assert(page != undefined, page);
     console.assert(page.constructor == Page, page);
 
-    const title = await page.title;
-    if (title == '') {
-        return;
-    }
-
-    if (pageByUrl.has(page.url)) {
-        const text_content = await page.text_content;
-        const text_content_old = await pageByUrl.get(page.url).text_content;
-        if (text_content_old == text_content) {
-            return;
-        }
-        if (text_content_old != '' && text_content == '') {
-            return;
-        }
-    }
-
     const page_old = pageByUrl.get(page.url);
     if (page_old) {
         page_old.tokens.forEach((token) => {
@@ -486,13 +471,31 @@ async function page_register_on_message(message, sender) {
     debugLog('message', message);
 
     const title = message.page.title;
-    const innerText = message.page.text_content;
-    const tokens = (await tokens_calc(title + '\n' + innerText)).concat(tokens_from_url(message.page.url));
+    const text_content = message.page.text_content;
+    const tokens = (await tokens_calc(title + '\n' + text_content)).concat(tokens_from_url(message.page.url));
     const isBookmarked = await url_is_bookmarked(message.page.url);
     const favicon_url = message.page.favicon_url;
-    const page = new Page(message.page.url, tokens, innerText, title, isBookmarked, null, favicon_url);
-    await page.async();
+    const url = message.page.url;
     debugLog('Registering page');
+
+    if (title == '') {
+        return;
+    }
+    if (pageByUrl.has(url)) {
+        const text_content_old = await pageByUrl.get(page.url).text_content;
+        if (text_content_old == text_content) {
+            return;
+        }
+        if (text_content_old != '' && text_content == '') {
+            return;
+        }
+    }
+    if (tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
+        return;
+    }
+
+    const page = new Page(message.page.url, tokens, text_content, title, isBookmarked, null, favicon_url);
+    await page.async();
     await page_register(page);
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
 }
@@ -572,6 +575,23 @@ async function pages_register_on_message(message, sender) {
         const url = page_in_message.url;
         const tokens = (await tokens_calc(title + '\n' + text_content)).concat(tokens_from_url(url));
         const isBookmarked = bookmarkedUrlSet.has(page_in_message.url);
+
+        if (title == '') {
+            return;
+        }
+        if (pageByUrl.has(url)) {
+            const text_content_old = await pageByUrl.get(page.url).text_content;
+            if (text_content_old == text_content) {
+                return;
+            }
+            if (text_content_old != '' && text_content == '') {
+                return;
+            }
+        }
+        if (tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
+            return;
+        }
+
         const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
         await page.async();
         await page_register(page);
@@ -642,6 +662,14 @@ function urls_get_by_token(token) {
         urls.add(page.url);
     }
     return urls;
+}
+
+function tokens_score_average(tokens) {
+    let score_sum = 0;
+    for (token of tokens) {
+        score_sum += token_score(token);
+    }
+    return score_sum / tokens.length;
 }
 
 async function pages_sorted_calc(page_target) {
@@ -756,12 +784,24 @@ function page_score(page) {
     if (page.tokens.length == 0) {
         return Number.MIN_SAFE_INTEGER / 2;
     }
-    const uniqueness =
-        Array.from(page.token_objects)
-            .map((token_object) => token_object.weight * Math.pow(pagesByToken.size_get(token_object.string) + 1, -2))
-            .reduce((a, b) => a + b) / page.tokens.length;
+
+    let uniqueness = 0;
+    for (token of page.tokens) {
+        uniqueness += token_score(token);
+    }
+    uniqueness /= page.tokens.length;
+
     const score = uniqueness + 0.001 * page.isBookmarked;
     console.assert(score);
+    return score;
+}
+
+function token_score(token) {
+    const token_object = token_object_by_text.get(token);
+    if (!token_object) {
+        return 0;
+    }
+    const score = token_object.weight * Math.pow(pagesByToken.size_get(token) + 1, -2);
     return score;
 }
 
@@ -1349,10 +1389,16 @@ class Page_get {
         const pages_from_link = await Promise.all(
             a_elem_array.map(async (a_elem) => {
                 const linkText = a_elem.innerText.replace(/\n|\s/g, ' ');
+                if (linkText == '') {
+                    return;
+                }
                 const tokens = (await tokens_calc(linkText)).concat(tokens_from_url(a_elem.href));
+                if (tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
+                    return;
+                }
                 return new Page(a_elem.href, tokens, '', linkText, null, null);
             })
-        );
+        ).filter((page) => page);
         return pages_from_link.concat(page);
     }
 
