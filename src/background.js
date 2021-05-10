@@ -1388,18 +1388,20 @@ class Page_get {
                     !a.href.includes('search')
             )
             .slice(0, 300);
-        const pages_from_link = await Promise.all(
-            a_elem_array.map(async (a_elem) => {
-                const linkText = a_elem.innerText.replace(/\n|\s/g, ' ');
-                if (linkText == '') {
-                    return;
-                }
-                const tokens = (await tokens_calc(linkText)).concat(tokens_from_url(a_elem.href));
-                if (tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
-                    return;
-                }
-                return new Page(a_elem.href, tokens, '', linkText, null, null);
-            })
+        const pages_from_link = (
+            await Promise.all(
+                a_elem_array.map(async (a_elem) => {
+                    const linkText = a_elem.innerText.replace(/\n|\s/g, ' ');
+                    if (linkText == '') {
+                        return;
+                    }
+                    const tokens = (await tokens_calc(linkText)).concat(tokens_from_url(a_elem.href));
+                    if (tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
+                        return;
+                    }
+                    return new Page(a_elem.href, tokens, '', linkText, null, null);
+                })
+            )
         ).filter((page) => page);
         return pages_from_link.concat(page);
     }
