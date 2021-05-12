@@ -1422,12 +1422,11 @@ class Page_get {
         return page;
     }
 
-    static parser = new DOMParser();
     static _parseHTML(htmlString) {
         /**
          * https://stackoverflow.com/questions/10585029/parse-an-html-string-with-js
          */
-        var htmlDoc = this.parser.parseFromString(htmlString, 'text/html');
+        var htmlDoc = Page_get.parseFromString(htmlString, 'text/html');
         if (!htmlDoc) {
             throw `missed parsing html : ${htmlString}`;
         }
@@ -1461,6 +1460,8 @@ class Page_get {
         });
     }
 }
+Page_get.parser = new DOMParser();
+
 Test.test_URLからページオブジェクトを生成できること = function () {
     (async () => {
         const url = 'https://example.com/';
