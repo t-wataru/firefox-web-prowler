@@ -181,12 +181,16 @@ async function prowl() {
     if (!page) {
         return;
     }
+    const extension = getExtension(page.url).toLowerCase();
+    if (['mp4', 'jpeg', 'png', 'jpg', 'gif', 'mp3'].includes(extension)) {
+        return;
+    }
     if ((await page.text_content.length) > 0) {
         return;
     }
 
     const pages_got = await Page_get.createPageAndLinkedPagesFromUrl(page.url).catch((e) => {
-        console.warn(`createPageAndLinkedPagesFromUrl  url:${url}, error:${e}`);
+        console.warn(`createPageAndLinkedPagesFromUrl  url:${url}, error:`, e);
         return null;
     });
     if (pages_got == null) {
@@ -199,6 +203,14 @@ async function prowl() {
     }
 
     debugLog('pages_got', pages_got);
+}
+
+//////////////////////////////////////////////////////////////////////
+// Get file extension.
+// @param url string: The target URL.
+//////////////////////////////////////////////////////////////////////
+function getExtension(url) {
+    return url.split(/#|\?/)[0].split('.').pop().trim();
 }
 
 init();
@@ -1426,7 +1438,7 @@ class Page_get {
         /**
          * https://stackoverflow.com/questions/10585029/parse-an-html-string-with-js
          */
-        var htmlDoc = Page_get.parseFromString(htmlString, 'text/html');
+        var htmlDoc = Page_get.parser.parseFromString(htmlString, 'text/html');
         if (!htmlDoc) {
             throw `missed parsing html : ${htmlString}`;
         }
