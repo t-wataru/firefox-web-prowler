@@ -1,4 +1,4 @@
-let debug = false;
+let debug = true;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -361,7 +361,7 @@ async function page_register(page, page_save = true) {
         });
     }
 
-    const tokens_alive = page.tokens.filter((token) => !tokens_ng.has(token));
+    const tokens_alive = Array.from(page.tokens).filter((token) => !tokens_ng.has(token));
     if (tokens_alive.length == 0) {
         return;
     }
@@ -375,7 +375,7 @@ async function page_register(page, page_save = true) {
     }
 
     console.assert(pageByUrl.get(page.url) == page);
-    console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
+    console.assert(!Array.from(page.tokens).find((token) => !pagesByToken.get(token).has(page)), page);
 }
 
 function tokens_too_many_within_page_set_ng(page) {
@@ -391,8 +391,8 @@ function tokens_too_many_set_ng(token_array) {
         }
     });
     Test.assert(
-        Object.values(pageByUrl).filter((p) => p.tokens.length == 0).length == 0,
-        Object.values(pageByUrl).filter((p) => p.tokens.length == 0)
+        Object.values(pageByUrl).filter((p) => p.tokens.size == 0).length == 0,
+        Object.values(pageByUrl).filter((p) => p.tokens.size == 0)
     );
 }
 
@@ -400,7 +400,7 @@ function token_set_ng(token) {
     tokens_ng.add(token);
     for (const page of pagesByToken.get(token)) {
         page.tokens = page.tokens.filter((token) => !tokens_ng.has(token));
-        if (page.tokens.length == 0) {
+        if (page.tokens.size == 0) {
             page_delete(page);
         } else {
             page.save();
@@ -683,7 +683,7 @@ function tokens_score_average(tokens) {
     for (token of tokens) {
         score_sum += token_score(token);
     }
-    return score_sum / tokens.length;
+    return score_sum / tokens.size;
 }
 
 async function pages_sorted_calc(page_target) {
@@ -795,7 +795,7 @@ async function 関連ページに表示されてるやつの中から情報持�
 }
 
 function page_score(page) {
-    if (page.tokens.length == 0) {
+    if (page.tokens.size == 0) {
         return Number.MIN_SAFE_INTEGER / 2;
     }
 
@@ -803,7 +803,8 @@ function page_score(page) {
     for (token of page.tokens) {
         uniqueness += token_score(token);
     }
-    uniqueness /= page.tokens.length;
+    uniqueness /= page.tokens.size;
+    console.assert(uniqueness);
 
     const score = uniqueness + 0.001 * page.isBookmarked;
     console.assert(score);
@@ -1134,7 +1135,7 @@ class Page {
             this.title = title;
         }
         this.token_objects = new Set();
-        this.tokens = tokens;
+        this.tokens = new Set(tokens);
         if (text_content) {
             this.text_content = text_content;
         }
@@ -1164,12 +1165,13 @@ class Page {
     }
 
     get tokens() {
-        return Array.from(this.token_objects).map((token_object) => token_object.string);
+        const token_set = new Set([...this.token_objects].map((token_object) => token_object.string));
+        return token_set;
     }
 
-    set tokens(text_array) {
+    set tokens(token_set) {
         this.token_objects = new Set();
-        for (const text of text_array) {
+        for (const text of token_set) {
             let token_object = token_object_by_text.get(text);
             if (!token_object) {
                 token_object = new Token(text);
