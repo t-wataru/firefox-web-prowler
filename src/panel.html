@@ -11,21 +11,25 @@
         :root {
             --link: #0044CC;
             --bookmark: #6b92df;
-            --white: #ffffff;
+            --background: #ffffff;
             --weak: #cadbffb6;
+            --strong: #0044CC;
+            --text: rgba(0, 0, 0, 0.712);
         }
 
         body {
             padding: 0.5em;
             font-family: BIZ UDGothic, Roboto, HelveticaNeue, Arial, sans-serif;
+            color: var(--text);
+            background-color: var(--background);
         }
 
         button {
-            color: rgba(0, 0, 0, 0.712);
+            color: var(--text);
             border: none;
             border-radius: 100%;
             padding: 0.3em 0.5em;
-            background-color: transparent;
+            background-color: var(--background);
             transition: all 160ms 0s ease;
             vertical-align: middle;
         }
@@ -55,6 +59,11 @@
             color: var(--link);
             font-size: 1em;
             line-height: 0.95em;
+            transition: all 160ms 0s ease;
+        }
+
+        .link a:hover {
+            color: var(--strong);
         }
 
         .description,
@@ -90,7 +99,7 @@
         }
 
         .container {
-            background-color: white;
+            background-color: var(--background);
             margin-bottom: 0.5ex;
             line-height: 110%;
             transition: all 70ms 0s ease;
@@ -115,6 +124,21 @@
 
         .foldout {
             display: none;
+        }
+
+        @media (prefers-color-scheme: dark){
+        /* ダークモードの時 */
+            html{
+                --isDarkmode: True;
+            }
+            :root {
+                --link: #cbe4ff;
+                --bookmark: #7FB2D4;
+                --background: #2B2A33;
+                --weak: #4995C855;
+                --strong: #fff;
+                --text: rgba(255, 255, 255, 0.8);
+            }
         }
     </style>
 </head>
