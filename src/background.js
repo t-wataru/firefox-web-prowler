@@ -421,7 +421,7 @@ function page_delete(page_) {
     page.delete();
 
     console.assert(pageByUrl.get(page.url) != page);
-    console.assert(!page.tokens.find((token) => pagesByToken.get(token).has(page)), page);
+    console.assert(!Array.from(page.tokens).find((token) => pagesByToken.get(token).has(page)), page);
 }
 
 async function recommend_on_message(message, sender, sendResponse) {
@@ -525,8 +525,8 @@ Test.test_ページを登録できること = function () {
 
         const page = pageByUrl.get(page_.url);
         console.assert(pageByUrl.get(page.url) == page);
-        console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
-        console.assert(page.tokens.includes('fvtgbzamikolpxscerynhujwd'), page);
+        console.assert(!Array.from(page.tokens).find((token) => !pagesByToken.get(token).has(page)), page);
+        console.assert(page.tokens.has('fvtgbzamikolpxscerynhujwd'), page);
 
         page_delete(page);
         console.assert(!pageByUrl.get(page.url), pageByUrl.get(page.url));
@@ -638,7 +638,7 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
             const page = pageByUrl.get(page_.url);
             console.assert(page, pageByUrl);
             console.assert(pageByUrl.get(page.url) == page, page);
-            console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
+            console.assert(!Array.from(page.tokens).find((token) => !pagesByToken.get(token).has(page)), page);
         }
         console.assert(pagesByToken.get('azqwsxedcrfvtbgy'));
         console.assert(pagesByToken.get('vcrfxvtbgytbgysed'));
@@ -666,7 +666,7 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         for (const page_ of pages) {
             const page = pageByUrl.get(page_.url);
             console.assert(pageByUrl.get(page.url) == page, page);
-            console.assert(!page.tokens.find((token) => !pagesByToken.get(token).has(page)), page);
+            console.assert(!Array.from(page.tokens).find((token) => !pagesByToken.get(token).has(page)), page);
         }
         console.assert(pagesByToken.size_get('vcrfxvtbgytbgyse') + pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
         page_delete(pageByUrl.get(url));
@@ -1328,14 +1328,11 @@ Test.test_履歴からページオブジェクトが生成できること = asyn
     sleep(10000).then(async () => {
         const history = (await history_array())[0];
         const page = await toPageFromHistory(history);
-        console.assert(
-            (await page.text_content).constructor == String &&
-                page.url.constructor == String &&
-                page.tab == null &&
-                page.tokens.constructor == Array &&
-                page.isBookmarked.constructor == Boolean,
-            page
-        );
+        console.assert((await page.text_content).constructor == String, page);
+        console.assert(page.url.constructor == String, page);
+        console.assert(page.tab == null, page);
+        console.assert(page.tokens.constructor == Set, page);
+        console.assert(page.isBookmarked.constructor == Boolean, page);
     });
 };
 
@@ -1470,7 +1467,7 @@ Test.test_URLからページオブジェクトを生成できること = functio
         const page = await Page_get.createPageFromUrl(url);
         console.assert((await page.title) == 'Example Domain', await page.title);
         console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), await page.text_content);
-        console.assert(page.tokens.includes('illustrative'), page);
+        console.assert(page.tokens.has('illustrative'), page);
         console.assert(page.url == url, page);
     })();
 };
