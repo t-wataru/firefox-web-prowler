@@ -424,7 +424,7 @@ function page_delete(page_) {
     console.assert(!page.tokens.find((token) => pagesByToken.get(token).has(page)), page);
 }
 
-async function recommend_on_message(message, sender) {
+async function recommend_on_message(message, sender, sendResponse) {
     if (message.type != 'recommend') {
         return;
     }
@@ -469,6 +469,10 @@ async function recommend_on_message(message, sender) {
     pages_tokens_weight_reduce(sortedPages);
 
     page_tokens_weight_learn(page, TOKEN_REWARD_ON_RECOMMEND);
+
+    sendResponse({});
+
+    return true;
 }
 
 function pages_tokens_weight_reduce(pages) {

@@ -21,8 +21,9 @@ if (ON_KEYUP_ENABLED) {
 }
 
 function recommend_and_register_request(text_request) {
-    recommend_request(text_request);
-    page_register_request(text_request);
+    recommend_request(text_request).then(() => {
+        page_register_request(text_request);
+    });
 }
 
 // window.addEventListener('load', (event) => {
@@ -37,8 +38,9 @@ window.addEventListener('focus', function (event) {
     recommend_request.textLines_before = '';
     page_register_request.textLines_before = '';
 
-    recommend_request(text_query());
-    page_register_request(text_query());
+    recommend_request(text_query()).then(() => {
+        page_register_request(text_query());
+    });
 });
 
 function text_query() {
@@ -65,8 +67,9 @@ window.addEventListener('scroll', function (e) {
         debugLog('scroll');
         const _text_in_html = text_in_html();
         const _text_selection = text_selection();
-        recommend_request(_text_selection ? _text_selection : _text_in_html);
-        page_register_request(_text_in_html);
+        recommend_request(_text_selection ? _text_selection : _text_in_html).then(() => {
+            page_register_request(_text_in_html);
+        });
     }, SCROLL_DELAY_MS);
 });
 
@@ -169,7 +172,7 @@ function recommend_request(text_request) {
     recommend_request.textLines_before = text_request;
     const message = { page: { url: location.href, text_request: text_request }, type: 'recommend' };
     debugLog('message', message);
-    browser.runtime.sendMessage(message);
+    return browser.runtime.sendMessage(message);
 }
 recommend_request.textLines_before = '';
 
