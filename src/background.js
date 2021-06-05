@@ -1244,26 +1244,6 @@ class Page {
 Page.store = localforage.createInstance({
     name: 'Page',
 });
-Test.test_ページをストレージから複製できること1 = async function () {
-    const page = await Page.load('http://100en.blog.jp/', new Set(), {
-        url: 'http://100en.blog.jp/',
-        tokens: ['文具'],
-        title: '100円ショップ文具術02',
-        isBookmarked: false,
-    });
-    Test.assert(page, page);
-};
-Test.test_ページをストレージから複製できること2 = async function () {
-    const page = await Page.load('https://example.com', new Set(), {
-        url: 'https://example.com',
-        tokens: [],
-        text_content: 'example',
-        title: 'example',
-        isBookmarked: false,
-        favicon_url: 'https://example.com/favicon.ico',
-    });
-    Test.assert(page, page);
-};
 
 async function page_innerText_save(page) {
     const text_content = await page.text_content;
