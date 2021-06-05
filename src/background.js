@@ -1215,7 +1215,7 @@ class Page {
         if (!loaded) {
             loaded = await Page.store.getItem(url);
         }
-        if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Array) {
+        if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Set) {
             return new Page(url, loaded.tokens, loaded.text_content, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
         }
 
