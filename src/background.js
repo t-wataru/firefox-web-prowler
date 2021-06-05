@@ -1447,31 +1447,15 @@ class Page_get {
         return htmlDoc;
     }
 
-    static _getHtml(url) {
-        return new Promise(function (resolve, reject) {
-            let xhr = new XMLHttpRequest();
-            xhr.open('GET', url);
-            xhr.timeout = XHR_TIMEOUT_MS;
-            xhr.onload = function () {
-                if (this.status >= 200 && this.status < 300) {
-                    resolve(xhr.response);
-                } else {
-                    reject({
-                        url: url,
-                        status: this.status,
-                        statusText: xhr.statusText,
-                    });
-                }
-            };
-            xhr.onerror = function () {
-                reject({
-                    url: url,
-                    status: this.status,
-                    statusText: xhr.statusText,
-                });
-            };
-            xhr.send();
-        });
+    static async _getHtml(url) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            controller.abort();
+        }, XHR_TIMEOUT_MS);
+        const response = await fetch(url, { signal: controller.signal });
+        const text = await response.text();
+        clearTimeout(timeout);
+        return text;
     }
 }
 Page_get.parser = new DOMParser();
