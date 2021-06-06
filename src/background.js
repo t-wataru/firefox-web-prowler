@@ -119,12 +119,12 @@ class Page {
     }
 
     get title() {
-        return Page.store.getItem(this.title_key).then((text) => text ?? '');
+        return Page.title_store.getItem(this.title_key).then((text) => text ?? '');
     }
 
     set title(text) {
         Test.assert(text.constructor == String, text);
-        this.title_promise = Page.store.setItem(this.title_key, text).catch((e) => {
+        this.title_promise = Page.title_store.setItem(this.title_key, text).catch((e) => {
             console.warn(e);
         });
     }
@@ -192,12 +192,12 @@ class Page {
     }
 
     get text_content() {
-        return Page.store.getItem(this.key_storage()).then((text) => text ?? '');
+        return Page.text_content_store.getItem(this.key_storage()).then((text) => text ?? '');
     }
 
     set text_content(value) {
         Test.assert(value.constructor == String, value);
-        this.text_content_promise = Page.store.setItem(this.key_storage(), value).catch((e) => {
+        this.text_content_promise = Page.text_content_store.setItem(this.key_storage(), value).catch((e) => {
             console.warn(e);
         });
     }
@@ -206,9 +206,9 @@ class Page {
         return await Page.store.removeItem(this.url);
     }
 }
-Page.store = localforage.createInstance({
-    name: 'Page',
-});
+Page.store = localforage.createInstance({ name: 'Page' });
+Page.text_content_store = localforage.createInstance({ name: 'Page_text_content' });
+Page.title_store = localforage.createInstance({ name: 'Page_title' });
 
 class Page_get {
     static async createPageAndLinkedPagesFromUrl(url) {
@@ -318,7 +318,7 @@ class WebProwler {
 
         this.bookmarkedUrlSet = await this.bookmark_urlset();
         await this.token_object_by_text.load_async();
-        await this.load().then(async () => {
+        await this.load_async().then(async () => {
             if (this.pagesByToken.pageByUrl.size == 0) {
                 if (BOOKMARK_LOAD) {
                     await this.pages_create_from_bookmarks_without_network();
@@ -487,7 +487,7 @@ class WebProwler {
         return array[Math.floor(Math.random() * array.length)];
     }
 
-    async load() {
+    async load_async() {
         const keys = await Page.store.keys();
         const urls = keys.filter((key) => key.match(/^https?/g) && !this.url_is_exist(key));
         const promises = urls.map(async (url) => {
@@ -514,11 +514,6 @@ class WebProwler {
             });
         }
 
-        const tokens_alive = Array.from(page.tokens).filter((token) => !this.tokens_ng.has(token));
-        if (tokens_alive.length == 0) {
-            return;
-        }
-        page.tokens = tokens_alive;
         page.tokens.forEach((token) => {
             this.pagesByToken.add(token, page);
         });
@@ -529,39 +524,6 @@ class WebProwler {
 
         console.assert(this.pagesByToken.pageByUrl.get(page.url) == page);
         console.assert(!Array.from(page.tokens).find((token) => !this.pagesByToken.get(token).has(page)), page);
-    }
-
-    tokens_too_many_within_page_set_ng(page) {
-        const tokens_alive_within_page = page.tokens.filter((token) => !tokens_ng.has(token));
-        this.tokens_too_many_set_ng(tokens_alive_within_page);
-    }
-
-    tokens_too_many_set_ng(token_array) {
-        token_array.forEach((token) => {
-            if (pagesByToken.size_get(token) > PAGE_NUMBER_BY_TOKEN_LIMIT) {
-                token_set_ng(token);
-                return;
-            }
-        });
-        Test.assert(
-            Object.values(pagesByToken.pageByUrl).filter((p) => p.tokens.size == 0).length == 0,
-            Object.values(pagesByToken.pageByUrl).filter((p) => p.tokens.size == 0)
-        );
-    }
-
-    token_set_ng(token) {
-        tokens_ng.add(token);
-        for (const page of this.pagesByToken.get(token)) {
-            page.tokens = page.tokens.filter((token) => !tokens_ng.has(token));
-            if (page.tokens.size == 0) {
-                this.page_delete(page);
-            } else {
-                page.save();
-            }
-        }
-        this.pagesByToken.delete(token);
-
-        console.assert(!pagesByToken.has(token), token);
     }
 
     page_delete(page_) {
@@ -707,7 +669,7 @@ class WebProwler {
         const page = this.pagesByToken.pageByUrl.get(message.page.url);
         this.page_delete(page);
         this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_DELETE);
-        console.assert(!pagesByToken.pageByUrl.get(page.url));
+        console.assert(!this.pagesByToken.pageByUrl.get(page.url));
     }
 
     async pages_register_on_message(message, sender) {
@@ -988,19 +950,6 @@ class WebProwler {
             .map((a) => a.charCodeAt())
             .reduce((a, b) => a + b);
         return textComplexity;
-    }
-
-    urlset_related_to_page(targetPage) {
-        const urlSet = new Set();
-        for (const token of targetPage.tokens) {
-            for (const page of this.pagesByToken.get(token)) {
-                urlSet.add(page.url);
-            }
-        }
-        for (const url of urlSet) {
-            console.assert(pagesByToken.pageByUrl.get(url), { url: url, pageByUrl: this.pagesByToken.pageByUrl, targetPage: targetPage });
-        }
-        return urlSet;
     }
 
     page_is_exist(url) {
@@ -1377,5 +1326,6 @@ Test.test_URIをでコードできること = function () {
 };
 
 const web_prowler = new WebProwler();
-web_prowler.init();
-Test.run();
+web_prowler.init().then(() => {
+    Test.run();
+});
