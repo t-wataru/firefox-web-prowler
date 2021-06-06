@@ -16,6 +16,7 @@ const PAGE_NUMBER_LIMIT = 100000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
+const UNIQUNESS_EXPORNENT = -2;
 const TOKENS_SCORE_LIMIT = 0.01;
 const TOKEN_REWARD_ON_RECOMMEND = 0.001;
 const TOKEN_REWARD_ON_REGISTER = 0.01;
@@ -387,7 +388,7 @@ class WebProwler {
     page_tokens_weight_learn(page, reward) {
         const LEARNING_ALPHA = 0.1;
         for (const token_object of page.token_objects) {
-            const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(this.pagesByToken.size_get(token_object.string) + 1, -2);
+            const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(this.pagesByToken.size_get(token_object.string) + 1, UNIQUNESS_EXPORNENT);
             token_object.weight -= weight_delta;
         }
     }
@@ -766,8 +767,8 @@ class WebProwler {
             .filter((token_object) => PAGE_NUMBER_BY_TOKEN_LIMIT > this.pagesByToken.size_get(token_object.string))
             .sort(
                 (token_object1, token_object2) =>
-                    Math.pow(this.pagesByToken.size_get(token_object1.string), -2) * token_object1.weight -
-                    Math.pow(this.pagesByToken.size_get(token_object2.string), -2) * token_object2.weight
+                    Math.pow(this.pagesByToken.size_get(token_object1.string), UNIQUNESS_EXPORNENT) * token_object1.weight -
+                    Math.pow(this.pagesByToken.size_get(token_object2.string), UNIQUNESS_EXPORNENT) * token_object2.weight
             )
             .reverse()
             .map((token_object) => token_object.string);
@@ -857,7 +858,7 @@ class WebProwler {
         if (!token_object) {
             return 0;
         }
-        const score = token_object.weight * Math.pow(this.pagesByToken.size_get(token) + 1, -2);
+        const score = token_object.weight * Math.pow(this.pagesByToken.size_get(token) + 1, UNIQUNESS_EXPORNENT);
         return score;
     }
 
