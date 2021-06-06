@@ -489,11 +489,13 @@ class WebProwler {
 
     async load_async() {
         const keys = await Page.store.keys();
-        const urls = keys.filter((key) => key.match(/^https?/g) && !this.url_is_exist(key));
-        const promises = urls.map(async (url) => {
-            const page = await Page.load(url, this.bookmarkedUrlSet);
-            if (page) {
-                await this.page_register(page, false);
+        const promises = keys.map(async (key) => {
+            if (key.match(/^https?/g) && !this.url_is_exist(key)) {
+                const url = key;
+                const page = await Page.load(url, this.bookmarkedUrlSet);
+                if (page) {
+                    await this.page_register(page, false);
+                }
             }
         });
         await Promise.all(promises);
