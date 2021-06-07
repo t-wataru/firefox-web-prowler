@@ -28,7 +28,10 @@ const TOKEN_REWARD_ON_SELECT = 1.0;
 const TOKEN_REWARD_ON_RELOAD = -2;
 
 class PagesByToken extends Map {
-    pageByUrl = new Map();
+    constructor() {
+        super();
+        this.pageByUrl = new Map();
+    }
     get(key) {
         const _get = super.get(key);
         if (!_get) {
@@ -311,13 +314,15 @@ class Page_get {
 Page_get.parser = new DOMParser();
 
 class WebProwler {
-    tokenizer = new Tokenizer();
-    pagesByToken = new PagesByToken();
-    bookmarkedUrlSet = new Set();
-    history_set = new Set();
-    tokens_ng = new Set();
-    token_object_by_text = new Token_Object_By_Text();
-    page_get_queue = new Set();
+    constructor() {
+        this.tokenizer = new Tokenizer();
+        this.pagesByToken = new PagesByToken();
+        this.bookmarkedUrlSet = new Set();
+        this.history_set = new Set();
+        this.tokens_ng = new Set();
+        this.token_object_by_text = new Token_Object_By_Text();
+        this.page_get_queue = new Set();
+    }
 
     async init() {
         debugLog('init...');
@@ -550,7 +555,6 @@ class WebProwler {
         await Promise.all(promises);
     }
 
-    savingTimeout;
     async page_register(page, page_save = true) {
         console.assert(page != undefined, page);
         console.assert(page.constructor == Page, page);
