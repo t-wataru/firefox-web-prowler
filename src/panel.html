@@ -18,7 +18,6 @@
         }
 
         body {
-            padding: 0.5em;
             font-family: BIZ UDGothic, Roboto, HelveticaNeue, Arial, sans-serif;
             color: var(--text);
             background-color: var(--background);
@@ -41,9 +40,11 @@
         }
 
         #main {
+            padding: 0.5em;
             font-size: 100%;
             width: 100%;
-            overflow: hidden
+            overflow: hidden;
+            padding-top: 3em;
         }
 
         #main a {
@@ -117,13 +118,51 @@
             width: 100%;
         }
 
-        .page_delete_all_button {
-            font-size: 2em;
+        .pages_reload_button {
+            font-size: 1.5em;
             font-weight: bold;
         }
 
         .foldout {
             display: none;
+        }
+
+        .app_menu {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            position : fixed;
+            background-color: var(--background);
+            left: 0;
+            top: 0;
+            box-shadow: 0px 1px 10px rgba(0,0,0,0.4);
+            width: 100%;
+            height: 3rem;
+        }
+        .app_menu button {
+            height: 2.5em;
+            width: 2.5em;
+        }
+        .star {
+            display: inline-block;
+            background-image: url(../icons/star.png);
+            background-size: contain;
+            vertical-align: middle;
+        }
+        .star_fill {
+            display: inline-block;
+            background-image: url(../icons/star_fill.png);
+            background-size: contain;
+            vertical-align: middle;
+        }
+        .display_none {
+            display: none;
+        }
+        .reload {
+            display: inline-block;
+            background-image: url(../icons/reload.png);
+            background-size: contain;
+            vertical-align: middle;
         }
 
         @media (prefers-color-scheme: dark){
@@ -144,8 +183,13 @@
 </head>
 
 <body>
-    <script src="./panel.js"></script>
+    <div id="app_menu" class="app_menu">
+        <button id="pages_reload_button" class="reload"></button>
+        <button id="bookmark_search_button_on" class="star"></button>
+        <button id="bookmark_search_button_off" class="star_fill display_none"></button>
+    </div>
     <div id="main"></div>
+    <script src="./panel.js"></script>
 </body>
 
 </html>

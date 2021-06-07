@@ -6,7 +6,7 @@ testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
 const SAVE_DELAY = 60 * 1000;
 const PAGE_GET_INTERVAL_MS = 4 * 1000;
 const XHR_TIMEOUT_MS = 3 * 1000;
-const PAGE_DISPLAY_LENGTH = 40;
+const PAGE_DISPLAY_LENGTH = 20;
 const PAGE_NUMBER_BY_TOKEN_LIMIT = 40;
 const HISTORY_MAX_LOAD = 5000;
 const PAGE_GET_QUEUE_REDUCE_NUMBER = 10000;
@@ -25,6 +25,7 @@ const TOKEN_REWARD_ON_IGNORED = -0.1;
 const TOKEN_REWARD_ON_DELETE = -1.0;
 const TOKEN_REWARD_ON_TAB_DELETE = -0.1;
 const TOKEN_REWARD_ON_SELECT = 1.0;
+const TOKEN_REWARD_ON_RELOAD = -2;
 
 class PagesByToken extends Map {
     pageByUrl = new Map();
@@ -217,6 +218,9 @@ class Page_get {
         const htmlElem = Page_get._parseHTML(html);
 
         const body = htmlElem.getElementsByTagName('body')[0];
+        if (!body) {
+            return;
+        }
 
         /*Scriptタグを削除。bodyタグ内にScriptタグがあると、JSがinnerTextに入り込む*/
         [...body.getElementsByTagName('script')].forEach((e) => e.remove());
@@ -310,6 +314,7 @@ class WebProwler {
     tokenizer = new Tokenizer();
     pagesByToken = new PagesByToken();
     bookmarkedUrlSet = new Set();
+    history_set = new Set();
     tokens_ng = new Set();
     token_object_by_text = new Token_Object_By_Text();
     page_get_queue = new Set();
@@ -318,6 +323,7 @@ class WebProwler {
         debugLog('init...');
 
         this.bookmarkedUrlSet = await this.bookmark_urlset();
+        this.historie_set = new Set(await this.history_array());
         await this.token_object_by_text.load_async();
         await this.load_async().then(async () => {
             if (this.pagesByToken.pageByUrl.size == 0) {
@@ -325,8 +331,7 @@ class WebProwler {
                     await this.pages_create_from_bookmarks_without_network();
                 }
                 if (HISTORY_LOAD) {
-                    const histories = await this.history_array();
-                    await this.pages_from_history(histories);
+                    await this.pages_from_history(this.historie_set);
                 }
             }
         });
@@ -335,13 +340,18 @@ class WebProwler {
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_register_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_delete_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_reload_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_selected_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.bookmark_search_switch(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => debugLog('message', message));
 
         browser.bookmarks.onCreated.addListener(() => this.bookmark_urlset_reset);
         browser.bookmarks.onRemoved.addListener(() => this.bookmark_urlset_reset);
         browser.bookmarks.onChanged.addListener(() => this.bookmark_urlset_reset);
+
+        browser.history.onVisited.addListener((histry_item) => {
+            this.historie_set.add(histry_item.id);
+        });
 
         browser.tabs.onRemoved.addListener(() => this.token_learn_on_tab_delete);
 
@@ -360,6 +370,45 @@ class WebProwler {
             console.assert(this.pagesByToken.pageByUrl.size == PAGE_NUMBER_LIMIT, this.pagesByToken.pageByUrl.size);
         }, PAGE_FREE_INTERVAL_MS);
         debugLog('...init');
+    }
+
+    async recommend_reload_on_message(message, sender, sendResponse = () => {}) {
+        if (message.type != 'recommend_reload') {
+            return;
+        }
+        console.log(this.page_last_recommend_target);
+
+        for (const page of this.pages_sorted) {
+            if (!page) {
+                continue;
+            }
+            const token_object_set = new Set();
+            for (const token_object of page.token_objects) {
+                token_object_set.add(token_object);
+            }
+            this.tokens_weight_learn(token_object_set, TOKEN_REWARD_ON_RELOAD);
+        }
+        await this.recommend_async(this.page_last_recommend_target);
+        sendResponse({});
+        return true;
+    }
+
+    tokens_weight_learn(token_objects, reward) {
+        const LEARNING_ALPHA = 0.1;
+        for (const token_object of token_objects) {
+            const weight_delta = -1.0 * LEARNING_ALPHA * reward * Math.pow(this.pagesByToken.size_get(token_object.string) + 1, UNIQUNESS_EXPORNENT);
+            token_object.weight -= weight_delta;
+        }
+    }
+
+    async bookmark_search_switch(message) {
+        if (message.type != 'bookmark_search_switch') {
+            return;
+        }
+        this.bookmark_search = message.enable;
+        await this.recommend_async(this.page_last_recommend_target);
+        sendResponse({});
+        return true;
     }
 
     async token_learn_on_tab_delete(tabId, removeInfo) {
@@ -563,7 +612,7 @@ class WebProwler {
             token_objects.add(token_object);
         }
         const isBookmarked = this.bookmarkedUrlSet.has(message.page.url);
-        const page = {
+        this.page_last_recommend_target = {
             url: message.page.url,
             tokens: tokens,
             token_objects: token_objects,
@@ -572,25 +621,30 @@ class WebProwler {
             isBookmarked: isBookmarked,
         };
 
-        debugLog('url', page.url);
-        const sortedPages = await this.pages_sorted_calc(page);
-        debugLog('sortedPages', sortedPages);
-        const sortedTokens = await this.tokens_sorted_calc(page.token_objects);
-        debugLog('sortedTokens', sortedTokens);
-
-        this.page_related_display(sortedPages, sortedTokens);
-        this.関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(sortedPages);
-
-        this.page_get_queue_resize();
-        this.page_get_queue_sort();
-
-        this.pages_tokens_weight_reduce(sortedPages);
-
-        this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_RECOMMEND);
+        await this.recommend_async(this.page_last_recommend_target);
 
         sendResponse({});
 
         return true;
+    }
+
+    async recommend_async(page_target) {
+        debugLog('url', page_target.url);
+        this.pages_sorted = await this.pages_sorted_calc(page_target, this.bookmark_search);
+        debugLog('sortedPages', this.pages_sorted);
+
+        const sortedTokens = await this.tokens_sorted_calc(page_target.token_objects);
+        debugLog('sortedTokens', sortedTokens);
+        this.page_related_display(this.pages_sorted, sortedTokens);
+
+        this.関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(this.pages_sorted);
+
+        this.page_get_queue_resize();
+        this.page_get_queue_sort();
+
+        this.pages_tokens_weight_reduce(this.pages_sorted);
+
+        this.page_tokens_weight_learn(this.page_last_recommend_target, TOKEN_REWARD_ON_RECOMMEND);
     }
 
     pages_tokens_weight_reduce(pages) {
@@ -738,7 +792,14 @@ class WebProwler {
         const urlset = new Set();
         urlset_list.forEach((tmpUrlSet) => {
             for (let url of tmpUrlSet) {
-                urlset.add(url);
+                if (this.bookmark_search) {
+                    if (this.bookmarkedUrlSet.has(url)) {
+                        urlset.add(url);
+                    }
+                } else {
+                    urlset.add(url);
+                }
+
                 if (urlset.size > PAGE_DISPLAY_LENGTH * 2) {
                     return;
                 }
@@ -776,10 +837,6 @@ class WebProwler {
 
     async page_related_display(sortedPages, sortedTokens) {
         const pages = await Promise.all(sortedPages.map(async (page) => await page.clone()));
-        Test.assert(
-            !pages.find((it) => !it.title),
-            pages.find((it) => !it.title)
-        );
         Test.assert(!pages.find((it) => !it.url), pages);
         const message = { sortedPages: pages, sortedTokens: sortedTokens, type: 'display_related_page' };
         debugLog('message', message);

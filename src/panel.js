@@ -26,6 +26,21 @@ function init() {
     browser.tabs.onCreated.addListener(() => {
         browser.tabs.query({}).then((_tabs) => (tabs = _tabs));
     });
+
+    const bookmark_search_button_star_on = document.getElementById('bookmark_search_button_on');
+    bookmark_search_button_star_on.onclick = () => {
+        bookmark_search_button_star_on.classList.add('display_none');
+        bookmark_search_button_star_off.classList.remove('display_none');
+        const message = { type: 'bookmark_search_switch', enable: true };
+        browser.runtime.sendMessage(message);
+    };
+    const bookmark_search_button_star_off = document.getElementById('bookmark_search_button_off');
+    bookmark_search_button_star_off.onclick = () => {
+        bookmark_search_button_star_on.classList.remove('display_none');
+        bookmark_search_button_star_off.classList.add('display_none');
+        const message = { type: 'bookmark_search_switch', enable: false };
+        browser.runtime.sendMessage(message);
+    };
 }
 init();
 
@@ -44,20 +59,18 @@ async function page_related_display(sortedPages, sortedTokens) {
     mainDivElement.innerHTML = '';
     mainDivElement.appendChild(documentFragment);
 
-    const page_delete_all_button = document.createElement('button');
-    page_delete_all_button.textContent = '×';
-    page_delete_all_button.title = 'Remove all page';
-    page_delete_all_button.classList.add('page_delete_all_button');
-    page_delete_all_button.addEventListener('click', () => {
+    const pages_reload_button = document.getElementById('pages_reload_button');
+    pages_reload_button.onclick = () => {
         recomend_elems.forEach((e) => e.classList.add('foldout'));
-        pages_delete(sortedPages);
-    });
-    const ui_list_controll_div = document.createElement('div');
-    ui_list_controll_div.classList.add('ui_list_controll');
-    ui_list_controll_div.appendChild(page_delete_all_button);
-    mainDivElement.appendChild(ui_list_controll_div);
+        recommend_reload();
+    };
 
     debugLog('...display_related_page');
+}
+
+function recommend_reload() {
+    const message = { type: 'recommend_reload' };
+    browser.runtime.sendMessage(message);
 }
 
 function url_is_on_tab(url, tabs) {
