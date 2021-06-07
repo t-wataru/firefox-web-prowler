@@ -376,7 +376,6 @@ class WebProwler {
         if (message.type != 'recommend_reload') {
             return;
         }
-        console.log(this.page_last_recommend_target);
 
         for (const page of this.pages_sorted) {
             if (!page) {
