@@ -544,12 +544,13 @@ class WebProwler {
     async load_async() {
         const keys = await Page.store.keys();
         const promises = keys.map(async (key) => {
-            if (key.match(/^https?/g) && !this.url_is_exist(key)) {
-                const url = key;
-                const page = await Page.load(url, this.bookmarkedUrlSet);
-                if (page) {
-                    await this.page_register(page, false);
-                }
+            const url = key;
+            const page = await Page.load(url, this.bookmarkedUrlSet);
+            if (page) {
+                page.tokens.forEach((token) => {
+                    this.pagesByToken.add(token, page);
+                });
+                this.pagesByToken.pageByUrl.set(page.url, page);
             }
         });
         await Promise.all(promises);
