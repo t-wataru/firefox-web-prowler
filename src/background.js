@@ -1032,14 +1032,25 @@ class WebProwler {
         }
 
         const minComplexity = this.text_complexity_calc('zz');
-        let tokens = (await this.tokenizer.tokenize(text))
-            .map((s) => s.replace(/\s/g, ''))
-            .filter((s) => s.length > 1)
-            .map((s) => s.toLowerCase());
+        let tokens = await this.tokenizer.tokenize(text);
+        tokens = tokens.map((s) => s.replace(/\s/g, ''));
+        tokens = tokens.map((s) => s.toLowerCase());
+        const tokens_bygram = tokens.concat(this.n_gram(tokens, 2));
+        const tokens_trigram = tokens.concat(this.n_gram(tokens, 3));
+        tokens = tokens.concat(tokens_bygram.concat(tokens_trigram));
+        tokens = tokens.filter((s) => s.length > 1);
         tokens = Array.from(new Set(tokens)).sort((s1, s2) => s1.length < s2.length);
 
         Test.assert(tokens, tokens);
         return tokens;
+    }
+
+    n_gram(target, n) {
+        const result = [];
+        for (let i = 0; i < target.length - n + 1; i++) {
+            result.push(target.slice(i, i + n).join(''));
+        }
+        return result;
     }
 
     uri_is_decodable(text) {
@@ -1360,11 +1371,72 @@ Test.test_テキストを分かち書きしてトークンが取り出せるこ�
     console.assert(
         JSON.stringify(tokens) ==
             JSON.stringify([
+                'competitor競合company',
+                '顧客）competitor',
+                '）competitor競合',
+                'competitor競合',
+                '）competitor',
+                '状況をcustomer',
+                'customer（顧客',
                 'competitor',
+                'このフレームワークで',
+                'をcustomer（',
+                '競合companyの',
+                'companyの観点',
+                'このフレームワーク',
+                'をcustomer',
+                'customer（',
+                '競合company',
+                'フレームワークでは',
                 'customer',
+                'フレームワークで',
+                'companyの',
                 'フレームワーク',
                 'company',
+                '整理しに対する',
+                'しに対する相対',
+                'に対する相対的',
+                'に対する相対',
+                '観点から情報',
+                'から情報整理',
+                'しに対する',
+                '自社が置か',
+                'の観点から',
+                '情報整理し',
+                '優位性検証',
+                '性検証ます',
+                '検証ます。',
                 'に対する',
+                '観点から',
+                'から情報',
+                '情報整理',
+                '検証ます',
+                'は、自社',
+                '、自社が',
+                'が置かれ',
+                '置かれた',
+                'れた状況',
+                'た状況を',
+                '（顧客）',
+                '相対的な',
+                '的な優位',
+                'な優位性',
+                '、自社',
+                '自社が',
+                'が置か',
+                '置かれ',
+                'た状況',
+                '状況を',
+                '（顧客',
+                '顧客）',
+                'の観点',
+                '整理し',
+                '相対的',
+                'な優位',
+                '優位性',
+                '性検証',
+                'ます。',
+                'では、',
                 'この',
                 '自社',
                 '置か',
@@ -1379,6 +1451,10 @@ Test.test_テキストを分かち書きしてトークンが取り出せるこ�
                 '優位',
                 '検証',
                 'ます',
+                'では',
+                'は、',
+                'れた',
+                '的な',
             ]),
         tokens
     );
