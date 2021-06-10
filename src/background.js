@@ -31,13 +31,32 @@ class PagesByToken {
     constructor() {
         this.pageByUrl = new Map();
         this.map = new Map();
+        this.store = localforage.createInstance({ name: 'PagesByToken' });
     }
-    get(key) {
-        const _get = this.map.get(key);
-        if (!_get) {
-            this.map.set(key, new Set());
+    async load_async() {
+        const map = await this.store.getItem('map');
+        if (map) {
+            this.map = map;
         }
-        return this.map.get(key);
+    }
+    async save_async() {
+        await this.store.setItem('map', this.map);
+    }
+    get_pages(key) {
+        const urls = this.get_urls(key);
+        const pages = new Set();
+        for (const url of urls) {
+            const page = this.pageByUrl.get(url);
+            pages.add(page);
+        }
+        return pages;
+    }
+    get_urls(key) {
+        const urls = this.map.get(key) ?? new Set();
+        if (urls.size == 0) {
+            this.map.set(key, urls);
+        }
+        return urls;
     }
     size_get(key) {
         const values = this.map.get(key);
@@ -46,13 +65,23 @@ class PagesByToken {
         }
         return values.size;
     }
-    add(key, value) {
-        if (value) {
-            this.get(key).add(value);
+    add(key, page) {
+        if (page) {
+            this.get_urls(key).add(page.url);
+        }
+        if (!this.saving) {
+            this.saving = true;
+            this.save_async().finally(() => {
+                setTimeout(() => {
+                    this.saving = false;
+                }, 100);
+            });
         }
     }
-    values() {
-        return this.map.values();
+    *values() {
+        for (const url of this.get_urls()) {
+            yield this.pageByUrl.get(url);
+        }
     }
     delete(key) {
         return this.map.delete(key);
@@ -556,12 +585,13 @@ class WebProwler {
             const url = key;
             const page = await Page.load(url, this.bookmarkedUrlSet);
             if (page) {
-                page.tokens.forEach((token) => {
-                    this.pagesByToken.add(token, page);
-                });
+                // page.tokens.forEach((token) => {
+                //     this.pagesByToken.add(token, page);
+                // });
                 this.pagesByToken.pageByUrl.set(page.url, page);
             }
         });
+        await this.pagesByToken.load_async();
         await Promise.all(promises);
     }
 
@@ -572,7 +602,7 @@ class WebProwler {
         const page_old = this.pagesByToken.pageByUrl.get(page.url);
         if (page_old) {
             page_old.tokens.forEach((token) => {
-                this.pagesByToken.get(token).delete(page_old);
+                this.pagesByToken.get_urls(token).delete(page_old);
                 if (this.pagesByToken.size_get(token) == 0) {
                     this.pagesByToken.delete(token);
                 }
@@ -588,7 +618,7 @@ class WebProwler {
         }
 
         console.assert(this.pagesByToken.pageByUrl.get(page.url) == page);
-        console.assert(!Array.from(page.tokens).find((token) => !this.pagesByToken.get(token).has(page)), page);
+        console.assert(!Array.from(page.tokens).find((token) => !this.pagesByToken.get_pages(token).has(page)), page);
     }
 
     page_delete(page_) {
@@ -601,7 +631,7 @@ class WebProwler {
         page.delete();
 
         console.assert(this.pagesByToken.pageByUrl.get(page.url) != page);
-        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.get(token).has(page)), page);
+        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.get_pages(token).has(page)), page);
     }
 
     async recommend_on_message(message, sender, sendResponse = () => {}) {
@@ -779,11 +809,7 @@ class WebProwler {
     }
 
     urls_get_by_token(token) {
-        const urls = new Set();
-        const pages = this.pagesByToken.get(token);
-        for (const page of pages) {
-            urls.add(page.url);
-        }
+        const urls = this.pagesByToken.get_urls(token);
         return urls;
     }
 
@@ -1281,7 +1307,7 @@ Test.test_ページを登録できること = function () {
 
         const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
         console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page);
-        console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get(token).has(page)), page);
+        console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         console.assert(page.tokens.has('fvtgbzamikolpxscerynhujwd'), page);
 
         web_prowler.page_delete(page);
@@ -1311,10 +1337,10 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
             console.assert(page, web_prowler.pagesByToken.pageByUrl);
             console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get(token).has(page)), page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         }
-        console.assert(web_prowler.pagesByToken.get('azqwsxedcrfvtbgy'));
-        console.assert(web_prowler.pagesByToken.get('vcrfxvtbgytbgysed'));
+        console.assert(web_prowler.pagesByToken.get_pages('azqwsxedcrfvtbgy'));
+        console.assert(web_prowler.pagesByToken.get_pages('vcrfxvtbgytbgysed'));
 
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
@@ -1339,7 +1365,7 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
             console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get(token).has(page)), page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         }
         console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
         web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
@@ -1363,7 +1389,7 @@ Test.test_推奨システムが最低限度動くこと = function () {
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
             console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get(token).has(page)), page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         }
         console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
 
