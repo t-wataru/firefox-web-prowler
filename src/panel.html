@@ -165,6 +165,20 @@
             vertical-align: middle;
         }
 
+        .donation {
+            position : fixed;
+            background-color: var(--background);
+            color: var(--strong);
+            right: 0;
+            bottom: 0;
+            box-shadow: -1px -1px 10px rgba(0,0,0,0.4);
+            padding:0.4rem;
+        }
+
+        .donation a {
+            color: var(--text);
+        }
+
         @media (prefers-color-scheme: dark){
         /* ダークモードの時 */
             html{
@@ -183,12 +197,15 @@
 </head>
 
 <body>
-    <div id="app_menu" class="app_menu">
+    <div id="app_menu" class="app_menu top">
         <button title="Reload" id="pages_reload_button" class="reload"></button>
         <button title="Recommend only bookmarked" id="bookmark_search_button_on" class="star"></button>
         <button title="Recommend include unbookmarked" id="bookmark_search_button_off" class="star_fill display_none"></button>
     </div>
     <div id="main"></div>
+    <div id="donation" class="donation">
+        <a href="https://buymeacoffee.com/w.tsujimoto">buy me a coffee</a>
+    </div>
     <script src="./panel.js"></script>
 </body>
 
