@@ -966,13 +966,13 @@ class WebProwler {
             page_score_element_by_url.get(url).score_alone = this.page_score(page);
         }
 
-        const uniquenessArray = Object.values(page_score_element_by_url).map((pageScoreElement) => pageScoreElement.uniqueness);
+        const uniquenessArray = [...page_score_element_by_url.values()].map((pageScoreElement) => pageScoreElement.uniqueness);
         const maxUniqueness = Math.max(...uniquenessArray);
         const minUniqueness = Math.min(...uniquenessArray);
 
         let score_alone_max = Number.MIN_SAFE_INTEGER;
         let score_alone_min = Number.MAX_SAFE_INTEGER;
-        for (const score_elem of Object.values(page_score_element_by_url)) {
+        for (const score_elem of page_score_element_by_url.values()) {
             if (score_alone_max < score_elem.score_alone) {
                 score_alone_max = score_elem.score_alone;
             }
