@@ -27,20 +27,20 @@ const TOKEN_REWARD_ON_TAB_DELETE = -0.1;
 const TOKEN_REWARD_ON_SELECT = 1.0;
 const TOKEN_REWARD_ON_RELOAD = -2;
 
-class PagesByToken extends Map {
+class PagesByToken {
     constructor() {
-        super();
         this.pageByUrl = new Map();
+        this.map = new Map();
     }
     get(key) {
-        const _get = super.get(key);
+        const _get = this.map.get(key);
         if (!_get) {
-            super.set(key, new Set());
+            this.map.set(key, new Set());
         }
-        return super.get(key);
+        return this.map.get(key);
     }
     size_get(key) {
-        const values = super.get(key);
+        const values = this.map.get(key);
         if (!values) {
             return 0;
         }
@@ -50,6 +50,15 @@ class PagesByToken extends Map {
         if (value) {
             this.get(key).add(value);
         }
+    }
+    values() {
+        return this.map.values();
+    }
+    delete(key) {
+        return this.map.delete(key);
+    }
+    has(key) {
+        return this.map.has(key);
     }
 }
 
@@ -1038,8 +1047,7 @@ class WebProwler {
         tokens = tokens.map((s) => s.replace(/\s/g, ''));
         tokens = tokens.map((s) => s.toLowerCase());
         const tokens_bygram = tokens.concat(this.n_gram(tokens, 2));
-        const tokens_trigram = tokens.concat(this.n_gram(tokens, 3));
-        tokens = tokens.concat(tokens_bygram.concat(tokens_trigram));
+        tokens = tokens.concat(tokens_bygram);
         tokens = tokens.filter((s) => s.length > 1);
         tokens = Array.from(new Set(tokens)).sort((s1, s2) => s1.length < s2.length);
 
