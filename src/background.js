@@ -392,16 +392,19 @@ class WebProwler {
         this.bookmarkedUrlSet = await this.bookmark_urlset();
         this.historie_set = new Set(await this.history_array());
         await this.token_object_by_text.load_async();
-        await this.load_async().then(async () => {
-            if (this.pagesByToken.pageByUrl.size == 0) {
-                if (BOOKMARK_LOAD) {
-                    await this.pages_create_from_bookmarks_without_network();
-                }
-                if (HISTORY_LOAD) {
-                    await this.pages_from_history(this.historie_set);
-                }
+        await this.load_async();
+        if (this.pagesByToken.pageByUrl.size == 0) {
+            await this.load_from_page_load_async();
+            debugLog('load_from_page_load_async', this.pagesByToken);
+        }
+        if (this.pagesByToken.pageByUrl.size == 0) {
+            if (BOOKMARK_LOAD) {
+                await this.pages_create_from_bookmarks_without_network();
             }
-        });
+            if (HISTORY_LOAD) {
+                await this.pages_from_history(this.historie_set);
+            }
+        }
 
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
@@ -605,6 +608,22 @@ class WebProwler {
 
     async load_async() {
         await this.pagesByToken.load_async();
+        debugLog('pagesByToken.load_async', this.pagesByToken);
+    }
+
+    async load_from_page_load_async() {
+        const keys = await Page.store.keys();
+        const promises = keys.map(async (key) => {
+            const url = key;
+            const page = await Page.load(url, this.bookmarkedUrlSet);
+            if (page) {
+                page.tokens.forEach((token) => {
+                    this.pagesByToken.add(token, page);
+                });
+                this.pagesByToken.pageByUrl.set(page.url, page);
+            }
+        });
+        await Promise.all(promises);
     }
 
     async page_register(page, page_save = true) {
