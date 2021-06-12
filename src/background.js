@@ -38,10 +38,27 @@ class PagesByToken {
         if (map) {
             this.map = map;
         }
+
+        for (const url_set of this.map.values()) {
+            for (const url of url_set) {
+                if (this.pageByUrl.has(url)) {
+                    continue;
+                }
+
+                const page = await Page.load(url);
+                if (!page) {
+                    url_set.delete(url);
+                    continue;
+                }
+
+                this.pageByUrl.set(url, page);
+            }
+        }
     }
     async save_async() {
         await this.store.setItem('map', this.map);
     }
+
     get_pages(key) {
         const urls = this.get_urls(key);
         const pages = new Set();
@@ -58,6 +75,12 @@ class PagesByToken {
         }
         return urls;
     }
+    url_delete_from_token(token, url) {
+        const url_set = this.map.get(token);
+        url_set?.delete(url);
+        this.map.set(token, url_set);
+        this.save_with_timeout_async(10 * 1000);
+    }
     size_get(key) {
         const values = this.map.get(key);
         if (!values) {
@@ -69,12 +92,15 @@ class PagesByToken {
         if (page) {
             this.get_urls(key).add(page.url);
         }
+        this.save_with_timeout_async(10 * 1000);
+    }
+    async save_with_timeout_async(timeout_ms) {
         if (!this.saving) {
             this.saving = true;
-            this.save_async().finally(() => {
+            await this.save_async().finally(() => {
                 setTimeout(() => {
                     this.saving = false;
-                }, 100);
+                }, timeout_ms);
             });
         }
     }
@@ -219,12 +245,10 @@ class Page {
         return page_clone;
     }
 
-    static async load(url, bookmarkedUrlSet_, loaded = undefined) {
-        if (!loaded) {
-            loaded = await Page.store.getItem(url);
-        }
+    static async load(url) {
+        const loaded = await Page.store.getItem(url);
         if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Set) {
-            return new Page(url, loaded.tokens, loaded.text_content, loaded.title, bookmarkedUrlSet_.has(url), null, loaded.favicon_url);
+            return new Page(url, loaded.tokens, loaded.text_content, loaded.title, null, null, null);
         }
 
         return null;
@@ -580,19 +604,7 @@ class WebProwler {
     }
 
     async load_async() {
-        const keys = await Page.store.keys();
-        const promises = keys.map(async (key) => {
-            const url = key;
-            const page = await Page.load(url, this.bookmarkedUrlSet);
-            if (page) {
-                // page.tokens.forEach((token) => {
-                //     this.pagesByToken.add(token, page);
-                // });
-                this.pagesByToken.pageByUrl.set(page.url, page);
-            }
-        });
         await this.pagesByToken.load_async();
-        await Promise.all(promises);
     }
 
     async page_register(page, page_save = true) {
@@ -601,24 +613,19 @@ class WebProwler {
 
         const page_old = this.pagesByToken.pageByUrl.get(page.url);
         if (page_old) {
-            page_old.tokens.forEach((token) => {
-                this.pagesByToken.get_urls(token).delete(page_old);
+            for (const token of page_old.tokens) {
+                this.pagesByToken.url_delete_from_token(token, page_old.url);
                 if (this.pagesByToken.size_get(token) == 0) {
                     this.pagesByToken.delete(token);
                 }
-            });
+            }
         }
 
         page.tokens.forEach((token) => {
             this.pagesByToken.add(token, page);
         });
         this.pagesByToken.pageByUrl.set(page.url, page);
-        if (page_save) {
-            page.save();
-        }
-
-        console.assert(this.pagesByToken.pageByUrl.get(page.url) == page);
-        console.assert(!Array.from(page.tokens).find((token) => !this.pagesByToken.get_pages(token).has(page)), page);
+        page.save();
     }
 
     page_delete(page_) {
@@ -777,7 +784,7 @@ class WebProwler {
             return;
         }
 
-        const register_promises = message.pages.map(async (page_in_message) => {
+        for (const page_in_message of message.pages) {
             const title = page_in_message.title;
             const text_content = page_in_message.text_content;
             const url = page_in_message.url;
@@ -788,7 +795,7 @@ class WebProwler {
                 return;
             }
             if (this.pagesByToken.pageByUrl.has(url)) {
-                const text_content_old = await this.pagesByToken.pageByUrl.get(page.url).text_content;
+                const text_content_old = await this.pagesByToken.pageByUrl.get(url).text_content;
                 if (text_content_old == text_content) {
                     return;
                 }
@@ -800,12 +807,11 @@ class WebProwler {
                 return;
             }
 
-            const page = new Page(page_in_message.url, tokens, text_content, title, isBookmarked, null);
+            const page = new Page(url, tokens, text_content, title, isBookmarked, null);
             await page.async();
             await this.page_register(page);
             this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
-        });
-        await Promise.all(register_promises);
+        }
     }
 
     urls_get_by_token(token) {
@@ -959,11 +965,6 @@ class WebProwler {
         return score;
     }
 
-    /**
-     * currentPageとクエリページ？
-     * なんか名前つけたい
-     * displayingPageと、targetPageかな
-     */
     async pages_scores_by_url(targetPage, urlSet, urlSetList) {
         const page_score_element_by_url = new Map();
         for (const url of urlSet) {
@@ -986,18 +987,27 @@ class WebProwler {
                 continue;
             }
             const size = this.pagesByToken.size_get(token_object.string) + 1;
-            const uniqueness = 1 / (size * size);
+            const uniqueness = token_object.weight / (size * size);
             for (const url of urlSet) {
-                if (this.pagesByToken.pageByUrl.get(url).token_objects.has(token_object)) {
+                const page = this.pagesByToken.pageByUrl.get(url);
+                if (!page) {
                     continue;
                 }
-                const weight = token_object.weight;
-                page_score_element_by_url.get(url).uniqueness += weight * uniqueness;
+                if (!page.token_objects.has(token_object)) {
+                    continue;
+                }
+                page_score_element_by_url.get(url).uniqueness += uniqueness;
             }
         }
 
         for (const url of urlSet) {
             const page = this.pagesByToken.pageByUrl.get(url);
+            if (!page) {
+                urlSet.delete(url);
+                console.warn(url);
+                continue;
+            }
+            console.assert(page, url, page);
             page_score_element_by_url.get(url).score_alone = this.page_score(page);
         }
 
@@ -1243,42 +1253,6 @@ Test.test_URLと対応するページがなければfalseを返す = function ()
     const pageByUrl_ = new Map([[url, new Page(url, [], null, 'example title', false, null, null)]]);
     Test.assert(!web_prowler.url_is_exist('https://dont.exist.example.com', pageByUrl_));
 };
-Test.test_ダメなページが一つ削除されること = function () {
-    setTimeout(
-        (async () => {
-            for (let i = 0; i < 100; i++) {
-                const pages = [
-                    new Page('https://example1.com', ['token1'], 'example token1', 'title1', false, null, null),
-                    new Page('https://example2.com', ['token2'], 'example token2', 'title2', false, null, null),
-                    new Page('https://example3.com', ['token3'], 'example token3', 'title3', false, null, null),
-                ];
-
-                for (const page of pages) {
-                    if (web_prowler.pagesByToken.pageByUrl.has(page.url)) {
-                        web_prowler.page_delete(page);
-                    }
-                }
-
-                await Promise.all(
-                    pages.map(async (p) => {
-                        await p.async();
-                        await web_prowler.page_register(p);
-                    })
-                );
-                const number = web_prowler.pagesByToken.pageByUrl.size;
-                web_prowler.pages_free(2);
-                console.assert(web_prowler.pagesByToken.pageByUrl.size - number == -1, web_prowler.pagesByToken.pageByUrl.size, number);
-
-                for (const page of pages) {
-                    if (web_prowler.pagesByToken.pageByUrl.has(page.url)) {
-                        web_prowler.page_delete(page);
-                    }
-                }
-            }
-        })(),
-        1000
-    );
-};
 
 Test.test_URLからページオブジェクトを生成できること = function () {
     (async () => {
@@ -1313,14 +1287,15 @@ Test.test_ページを登録できること = function () {
         web_prowler.page_delete(page);
         console.assert(!web_prowler.pagesByToken.pageByUrl.get(page.url), web_prowler.pagesByToken.pageByUrl.get(page.url));
         console.assert(![...web_prowler.pagesByToken.values()].find((pages) => pages.has(page)));
-    }, 5000);
+    }, 0000);
 };
 
 Test.test_一つのメッセージで送られた複数のページを一括で登録できること = function () {
     setTimeout(async () => {
+        const random = Math.random();
         const pages = [
-            { url: 'https://example1.com/', text_content: 'example1 text azqwsxedcrfvtbgy', title: 'example1 site' },
-            { url: 'https://example2.com/', text_content: 'example2 text vcrfxvtbgytbgysed', title: 'example2 site' },
+            { url: 'https://example1.com/page_register_multi' + random, text_content: 'example1 text dcrfvzqwtyabgsxe', title: 'example1 site' },
+            { url: 'https://example2.com/page_register_multi' + random, text_content: 'example2 text bfgvxvteytcrdbgys', title: 'example2 site' },
         ];
 
         for (const page_ of pages) {
@@ -1335,22 +1310,22 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
 
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
-            console.assert(page, web_prowler.pagesByToken.pageByUrl);
+            console.assert(page, page_.url);
             console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
             console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         }
-        console.assert(web_prowler.pagesByToken.get_pages('azqwsxedcrfvtbgy'));
-        console.assert(web_prowler.pagesByToken.get_pages('vcrfxvtbgytbgysed'));
+        console.assert(web_prowler.pagesByToken.get_pages('dcrfvzqwtyabgsxe'));
+        console.assert(web_prowler.pagesByToken.get_pages('bfgvxvteytcrdbgys'));
 
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
             web_prowler.page_delete(page);
         }
-    }, 5000);
+    }, 1000);
 };
 Test.test_urlが同じページが登録されても古い奴が消されていること = function () {
     setTimeout(async () => {
-        const url = 'https://example.com/';
+        const url = 'https://example.com/page_old_delete' + Math.random();
         if (web_prowler.pagesByToken.pageByUrl.has(url)) {
             web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
         }
@@ -1360,7 +1335,6 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         ];
         const message = { pages: pages, type: 'registers' };
         await web_prowler.pages_register_on_message(message, null);
-        await sleep(1000);
 
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
@@ -1369,7 +1343,7 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         }
         console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
         web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
-    }, 5000);
+    }, 2000);
 };
 
 Test.test_推奨システムが最低限度動くこと = function () {
@@ -1378,26 +1352,38 @@ Test.test_推奨システムが最低限度動くこと = function () {
         if (web_prowler.pagesByToken.pageByUrl.has(url)) {
             web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
         }
+        for (const url_sxedcazqwrfvtbgy of web_prowler.pagesByToken.get_urls('sxedcazqwrfvtbgy')) {
+            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url_sxedcazqwrfvtbgy));
+        }
+        for (const url_tbgyvcrfxvtbgyse of web_prowler.pagesByToken.get_urls('tbgyvcrfxvtbgyse')) {
+            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url_tbgyvcrfxvtbgyse));
+        }
+        console.assert(web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') == 0, web_prowler.pagesByToken.get_urls('sxedcazqwrfvtbgy'));
+        console.assert(web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 0, web_prowler.pagesByToken.get_urls('tbgyvcrfxvtbgyse'));
+
         const pages = [
             { url: url, text_content: 'example3 text sxedcazqwrfvtbgy', title: 'example1 site' },
             { url: url, text_content: 'example3 text tbgyvcrfxvtbgyse', title: 'example2 site' },
         ];
         const message_register = { pages: pages, type: 'registers' };
         await web_prowler.pages_register_on_message(message_register, null);
-        await sleep(1000);
 
         for (const page_ of pages) {
             const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
             console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
             console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
         }
-        console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
+        console.assert(
+            web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') + web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 1,
+            web_prowler.pagesByToken.get_urls('sxedcazqwrfvtbgy'),
+            web_prowler.pagesByToken.get_urls('tbgyvcrfxvtbgyse')
+        );
 
         const message_recommend = { page: { url: url, text_request: 'tbgyvcrfxvtbgyse' }, type: 'recommend' };
         await web_prowler.recommend_on_message(message_recommend);
 
         web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
-    }, 5000);
+    }, 3000);
 };
 
 Test.test_テキストを分かち書きしてトークンが取り出せること = async function () {
@@ -1407,56 +1393,25 @@ Test.test_テキストを分かち書きしてトークンが取り出せるこ�
     console.assert(
         JSON.stringify(tokens) ==
             JSON.stringify([
-                'competitor競合company',
-                '顧客）competitor',
-                '）competitor競合',
                 'competitor競合',
                 '）competitor',
-                '状況をcustomer',
-                'customer（顧客',
                 'competitor',
-                'このフレームワークで',
-                'をcustomer（',
-                '競合companyの',
-                'companyの観点',
                 'このフレームワーク',
                 'をcustomer',
                 'customer（',
                 '競合company',
-                'フレームワークでは',
                 'customer',
                 'フレームワークで',
                 'companyの',
                 'フレームワーク',
                 'company',
-                '整理しに対する',
-                'しに対する相対',
-                'に対する相対的',
                 'に対する相対',
-                '観点から情報',
-                'から情報整理',
                 'しに対する',
-                '自社が置か',
-                'の観点から',
-                '情報整理し',
-                '優位性検証',
-                '性検証ます',
-                '検証ます。',
                 'に対する',
                 '観点から',
                 'から情報',
                 '情報整理',
                 '検証ます',
-                'は、自社',
-                '、自社が',
-                'が置かれ',
-                '置かれた',
-                'れた状況',
-                'た状況を',
-                '（顧客）',
-                '相対的な',
-                '的な優位',
-                'な優位性',
                 '、自社',
                 '自社が',
                 'が置か',
@@ -1472,7 +1427,6 @@ Test.test_テキストを分かち書きしてトークンが取り出せるこ�
                 '優位性',
                 '性検証',
                 'ます。',
-                'では、',
                 'この',
                 '自社',
                 '置か',
