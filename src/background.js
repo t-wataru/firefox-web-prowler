@@ -1009,10 +1009,6 @@ class WebProwler {
             page_score_element_by_url.set(url, {});
         }
 
-        for (const url of urlSet) {
-            page_score_element_by_url.get(url).uniqueness = 0;
-        }
-
         const token_objects_target = [];
         for (const token_object of targetPage.token_objects) {
             if (token_object.string.length > 1) {
