@@ -896,7 +896,7 @@ class WebProwler {
                 }
             }
         });
-        const pages_scores_by_url_ = await this.pages_scores_by_url(page_target, urlset, urlset_list).catch((e) => console.error(e));
+        const pages_scores_by_url_ = await this.pages_scores_by_url(page_target, urlset, page_by_url).catch((e) => console.error(e));
 
         urlset.delete(page_target.url);
 
@@ -1011,7 +1011,7 @@ class WebProwler {
         return score;
     }
 
-    async pages_scores_by_url(targetPage, urlSet, urlSetList) {
+    async pages_scores_by_url(targetPage, urlSet, page_by_url) {
         const page_score_element_by_url = new Map();
         for (const url of urlSet) {
             page_score_element_by_url.set(url, {});
@@ -1026,7 +1026,7 @@ class WebProwler {
 
         const score_by_token = new Map();
         for (const url of urlSet) {
-            const page = this.pagesByToken.pageByUrl.get(url);
+            const page = page_by_url.get(url);
             if (!page) {
                 urlSet.delete(url);
                 console.warn(url);
@@ -1068,7 +1068,7 @@ class WebProwler {
         const tabs = await browser.tabs.query({});
         console.assert(tabs.length > 0, tabs);
         for (const url of urlSet) {
-            const page = this.pagesByToken.pageByUrl.get(url);
+            const page = page_by_url.get(url);
             if (!page) {
                 throw `page is ${page}, url i ${url}`;
             }
