@@ -32,8 +32,8 @@ class PageByUrl {
     constructor() {
         this.map = new Map();
     }
-    get(url) {
-        return this.map.get(url);
+    async get_async(url) {
+        return this.map.get(url) ?? (await Page.load(url));
     }
     set(url, page) {
         return this.map.set(url, page);
@@ -50,6 +50,11 @@ class PageByUrl {
     values() {
         return this.map.values();
     }
+    async load_async() {
+        for (const url of await Page.store.keys()) {
+            this.map.set(url, null);
+        }
+    }
 }
 
 class PagesByToken {
@@ -64,31 +69,17 @@ class PagesByToken {
             this.map = map;
         }
 
-        for (const url_set of this.map.values()) {
-            for (const url of url_set) {
-                if (this.pageByUrl.has(url)) {
-                    continue;
-                }
-
-                const page = await Page.load(url);
-                if (!page) {
-                    url_set.delete(url);
-                    continue;
-                }
-
-                this.pageByUrl.set(url, page);
-            }
-        }
+        await this.pageByUrl.load_async();
     }
     async save_async() {
         await this.store.setItem('map', this.map);
     }
 
-    get_pages(key) {
+    async get_pages_async(key) {
         const urls = this.get_urls(key);
         const pages = new Set();
         for (const url of urls) {
-            const page = this.pageByUrl.get(url);
+            const page = await this.pageByUrl.get_async(url);
             pages.add(page);
         }
         return pages;
@@ -99,6 +90,9 @@ class PagesByToken {
             this.map.set(key, urls);
         }
         return urls;
+    }
+    tokens() {
+        return this.map.keys();
     }
     url_delete_from_token(token, url) {
         const url_set = this.map.get(token);
@@ -131,7 +125,7 @@ class PagesByToken {
     }
     *values() {
         for (const url of this.get_urls()) {
-            yield this.pageByUrl.get(url);
+            yield this.pageByUrl.get_async(url);
         }
     }
     delete(key) {
@@ -434,7 +428,7 @@ class WebProwler {
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_register_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message_async(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_reload_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_selected_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.bookmark_search_switch(message, sender, sendResponse));
@@ -512,7 +506,7 @@ class WebProwler {
         }
         const url = tab.url;
         console.assert(url, url);
-        const page = this.pagesByToken.pageByUrl.get(url);
+        const page = await this.pagesByToken.pageByUrl.get_async(url);
         if (!page) {
             return;
         }
@@ -524,7 +518,7 @@ class WebProwler {
             return;
         }
         debugLog('message', message);
-        const page_selected = this.pagesByToken.pageByUrl.get(message.page.url);
+        const page_selected = await this.pagesByToken.pageByUrl.get_async(message.page.url);
         this.page_tokens_weight_learn(page_selected, TOKEN_REWARD_ON_SELECT);
     }
 
@@ -566,7 +560,7 @@ class WebProwler {
         }
 
         for (const page_got of pages_got) {
-            this.page_register(page_got);
+            this.page_register_async(page_got);
         }
 
         debugLog('pages_got', pages_got);
@@ -613,7 +607,7 @@ class WebProwler {
         const pages_sorted = [...page_set].sort((p1, p2) => page_score_by_page.get(p1) - page_score_by_page.get(p2));
 
         for (let i = 0; i < free_number; i++) {
-            this.page_delete(pages_sorted[i]);
+            this.page_delete_async(pages_sorted[i]);
         }
     }
 
@@ -651,11 +645,11 @@ class WebProwler {
         await Promise.all(promises);
     }
 
-    async page_register(page, page_save = true) {
+    async page_register_async(page, page_save = true) {
         console.assert(page != undefined, page);
         console.assert(page.constructor == Page, page);
 
-        const page_old = this.pagesByToken.pageByUrl.get(page.url);
+        const page_old = await this.pagesByToken.pageByUrl.get_async(page.url);
         if (page_old) {
             for (const token of page_old.tokens) {
                 this.pagesByToken.url_delete_from_token(token, page_old.url);
@@ -672,17 +666,18 @@ class WebProwler {
         page.save();
     }
 
-    page_delete(page_) {
-        const page = this.pagesByToken.pageByUrl.get(page_.url);
-        for (const pages of this.pagesByToken.values()) {
-            pages.delete(page);
-            pages.delete(page_);
+    async page_delete_async(page) {
+        if (!page) {
+            return;
+        }
+        for (const token of this.pagesByToken.tokens()) {
+            this.pagesByToken.url_delete_from_token(token, page.url);
         }
         this.pagesByToken.pageByUrl.delete(page.url);
         page.delete();
 
-        console.assert(this.pagesByToken.pageByUrl.get(page.url) != page);
-        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.get_pages(token).has(page)), page);
+        console.assert((await this.pagesByToken.pageByUrl.get_async(page.url)) != page);
+        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.get_urls(token).has(page.url)), page);
     }
 
     async recommend_on_message(message, sender, sendResponse = () => {}) {
@@ -715,7 +710,7 @@ class WebProwler {
             isBookmarked: isBookmarked,
         };
 
-        await this.recommend_async(this.page_last_recommend_target);
+        await this.recommend_async(this.page_last_recommend_target).catch((e) => console.error(e));
 
         sendResponse({});
 
@@ -725,18 +720,37 @@ class WebProwler {
     async recommend_async(page_target) {
         debugLog('url', page_target.url);
 
-        const page_by_url = new Map();
+        const url_set = new Set();
         for (const token of page_target.tokens) {
-            const pages = this.pagesByToken.get_pages(token);
-            for (const page of pages) {
-                page_by_url.set(page.url, page);
+            const urls = this.pagesByToken.get_urls(token);
+            if (urls) {
+                if (url_set.size > PAGE_DISPLAY_LENGTH * 2) {
+                    break;
+                }
+                for (const url of urls) {
+                    if (url_set.size > PAGE_DISPLAY_LENGTH * 2) {
+                        break;
+                    }
+                    url_set.add(url);
+                }
             }
         }
+        debugLog('url_set', url_set);
+
+        const page_by_url = new Map();
+        const page_by_url_promise = Promise.all(
+            [...url_set].map(async (url) => {
+                const page = await this.pagesByToken.pageByUrl.get_async(url);
+                page_by_url.set(url, page);
+            })
+        );
 
         const tokens_sorted = await this.tokens_sorted_calc(page_target.token_objects);
         debugLog('sortedTokens', tokens_sorted);
 
-        this.pages_sorted = await this.pages_sorted_calc(page_target, tokens_sorted, page_by_url);
+        await page_by_url_promise;
+        debugLog('page_by_url', page_by_url);
+        this.pages_sorted = await this.pages_sorted_calc(page_target, tokens_sorted, page_by_url, url_set);
         debugLog('sortedPages', this.pages_sorted);
 
         this.page_related_display(this.pages_sorted, tokens_sorted);
@@ -774,9 +788,10 @@ class WebProwler {
         if (title == '') {
             return;
         }
+
         const page = new Page(message.page.url, tokens, text_content, title, isBookmarked, null, favicon_url);
         if (this.pagesByToken.pageByUrl.has(url)) {
-            const text_content_old = await this.pagesByToken.pageByUrl.get(page.url).text_content;
+            const text_content_old = await (await this.pagesByToken.pageByUrl.get_async(page.url)).text_content;
             if (text_content_old == text_content) {
                 return;
             }
@@ -784,11 +799,14 @@ class WebProwler {
                 return;
             }
         }
+
         if (this.tokens_score_average(tokens) < TOKENS_SCORE_LIMIT) {
             return;
         }
 
         await page.async();
+        await this.page_register_async(page);
+        this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
     }
 
     tokens_from_url(url) {
@@ -803,30 +821,29 @@ class WebProwler {
         return '';
     }
 
-    pages_delete_on_message(message, sender) {
+    async pages_delete_on_message_async(message, sender) {
         if (!message.pages_delete) {
             return;
         }
         const urls = message.pages.map((page) => page.url);
         for (const url of urls) {
-            const page = this.pagesByToken.pageByUrl.get(url);
+            const page = await this.pagesByToken.pageByUrl.get_async(url);
             if (!page) {
                 continue;
             }
             this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_DELETE);
-            this.page_delete(page);
+            this.page_delete_async(page);
         }
-        console.assert(urls.filter((url) => this.pagesByToken.pageByUrl.get(url)).length == 0, message);
     }
 
-    page_delete_on_message(message, sender) {
+    async page_delete_on_message_async(message, sender) {
         if (!message.page_delete) {
             return;
         }
-        const page = this.pagesByToken.pageByUrl.get(message.page.url);
-        this.page_delete(page);
+        const page = await this.pagesByToken.pageByUrl.get_async(message.page.url);
+        await this.page_delete_async(page);
         this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_DELETE);
-        console.assert(!this.pagesByToken.pageByUrl.get(page.url));
+        console.assert(!(await this.pagesByToken.pageByUrl.get_async(page.url)));
     }
 
     async pages_register_on_message(message, sender) {
@@ -843,7 +860,7 @@ class WebProwler {
                 return;
             }
             if (this.pagesByToken.pageByUrl.has(url)) {
-                const text_content_old = await this.pagesByToken.pageByUrl.get(url).text_content;
+                const text_content_old = await (await this.pagesByToken.pageByUrl.get_async(url)).text_content;
                 if (text_content_old == text_content) {
                     return;
                 }
@@ -857,7 +874,7 @@ class WebProwler {
 
             const page = new Page(url, tokens, text_content, title, isBookmarked, null);
             await page.async();
-            await this.page_register(page);
+            await this.page_register_async(page);
             this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
 
             debugLog('...pages_register_on_message');
@@ -877,25 +894,7 @@ class WebProwler {
         return score_sum / tokens.size;
     }
 
-    async pages_sorted_calc(page_target, tokens_sorted, page_by_url) {
-        const urlset_list = tokens_sorted.map((token) => this.urls_get_by_token(token));
-
-        const urlset = new Set();
-        urlset_list.forEach((tmpUrlSet) => {
-            for (let url of tmpUrlSet) {
-                if (this.bookmark_search) {
-                    if (this.bookmarkedUrlSet.has(url)) {
-                        urlset.add(url);
-                    }
-                } else {
-                    urlset.add(url);
-                }
-
-                if (urlset.size > PAGE_DISPLAY_LENGTH * 2) {
-                    return;
-                }
-            }
-        });
+    async pages_sorted_calc(page_target, tokens_sorted, page_by_url, urlset) {
         const pages_scores_by_url_ = await this.pages_scores_by_url(page_target, urlset, page_by_url).catch((e) => console.error(e));
 
         urlset.delete(page_target.url);
@@ -1099,7 +1098,7 @@ class WebProwler {
     }
 
     page_is_exist(url) {
-        if (this.pagesByToken.pageByUrl.get(url)) {
+        if (this.pagesByToken.pageByUrl.has(url)) {
             return true;
         }
         return false;
@@ -1156,7 +1155,7 @@ class WebProwler {
         const pages = await this.bookmark_page_list();
         debugLog('pages from bookmark', pages);
         for (const page of pages.filter((p) => !this.page_is_exist(p))) {
-            await this.page_register(page);
+            await this.page_register_async(page);
             this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER_FROM_BOOKMARK);
         }
         debugLog('pagesByToken', this.pagesByToken);
@@ -1236,7 +1235,7 @@ class WebProwler {
             if (this.page_is_exist(page)) {
                 continue;
             }
-            await this.page_register(page);
+            await this.page_register_async(page);
         }
         debugLog('...createPagesFromHistory');
     }
@@ -1313,16 +1312,16 @@ Test.test_ページを登録できること = function () {
     setTimeout(async () => {
         const page_ = { url: 'https://example1.com/', text_content: 'example1 text fvtgbzamikolpxscerynhujwd', title: 'example1 site' };
         const message = { page: page_, type: 'register' };
-        await web_prowler.page_register_on_message(message, null);
+        await web_prowler.page_register_on_message(message, null).catch((e) => console.error(e));
 
-        const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
-        console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page);
-        console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
+        const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
+        console.assert(page, page);
+        console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_urls(token).has(page.url)), page);
         console.assert(page.tokens.has('fvtgbzamikolpxscerynhujwd'), page);
 
-        web_prowler.page_delete(page);
-        console.assert(!web_prowler.pagesByToken.pageByUrl.get(page.url), web_prowler.pagesByToken.pageByUrl.get(page.url));
-        console.assert(![...web_prowler.pagesByToken.values()].find((pages) => pages.has(page)));
+        web_prowler.page_delete_async(page);
+        console.assert(!(await web_prowler.pagesByToken.pageByUrl.get_async(page.url)), web_prowler.pagesByToken.pageByUrl.get_async(page.url));
+        console.assert(!(await Promise.all(web_prowler.pagesByToken.values())).find((pages) => pages.has(page)));
     }, 0000);
 };
 
@@ -1335,9 +1334,9 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
         ];
 
         for (const page_ of pages) {
-            const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
             if (page) {
-                web_prowler.page_delete(page);
+                web_prowler.page_delete_async(page);
             }
         }
 
@@ -1345,25 +1344,25 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
         await web_prowler.pages_register_on_message(message, null);
 
         for (const page_ of pages) {
-            const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
             console.assert(page, page_.url);
-            console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
+            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_urls(token).has(page.url)), page);
         }
-        console.assert(web_prowler.pagesByToken.get_pages('dcrfvzqwtyabgsxe'));
-        console.assert(web_prowler.pagesByToken.get_pages('bfgvxvteytcrdbgys'));
+        console.assert(await web_prowler.pagesByToken.get_pages_async('dcrfvzqwtyabgsxe'));
+        console.assert(await web_prowler.pagesByToken.get_pages_async('bfgvxvteytcrdbgys'));
 
         for (const page_ of pages) {
-            const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
-            web_prowler.page_delete(page);
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
+            web_prowler.page_delete_async(page);
         }
     }, 1000);
 };
 Test.test_urlが同じページが登録されても古い奴が消されていること = function () {
     setTimeout(async () => {
-        const url = 'https://example.com/page_old_delete' + Math.random();
+        const url = 'https://example.com/page_old_delete';
         if (web_prowler.pagesByToken.pageByUrl.has(url)) {
-            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
+            web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
         }
         const pages = [
             { url: url, text_content: 'example3 text azqwsxedcrfvtbgy', title: 'example1 site' },
@@ -1373,12 +1372,12 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         await web_prowler.pages_register_on_message(message, null);
 
         for (const page_ of pages) {
-            const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
-            console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
+            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_urls(token).has(url)), page);
         }
         console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
-        web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
+        web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
     }, 2000);
 };
 
@@ -1386,13 +1385,14 @@ Test.test_推奨システムが最低限度動くこと = function () {
     setTimeout(async () => {
         const url = 'https://example.com/recommend/' + Math.random();
         if (web_prowler.pagesByToken.pageByUrl.has(url)) {
-            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
+            web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
         }
         for (const url_sxedcazqwrfvtbgy of web_prowler.pagesByToken.get_urls('sxedcazqwrfvtbgy')) {
-            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url_sxedcazqwrfvtbgy));
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(url_sxedcazqwrfvtbgy);
+            web_prowler.page_delete_async(page);
         }
         for (const url_tbgyvcrfxvtbgyse of web_prowler.pagesByToken.get_urls('tbgyvcrfxvtbgyse')) {
-            web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url_tbgyvcrfxvtbgyse));
+            web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url_tbgyvcrfxvtbgyse));
         }
         console.assert(web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') == 0, web_prowler.pagesByToken.get_urls('sxedcazqwrfvtbgy'));
         console.assert(web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 0, web_prowler.pagesByToken.get_urls('tbgyvcrfxvtbgyse'));
@@ -1405,9 +1405,9 @@ Test.test_推奨システムが最低限度動くこと = function () {
         await web_prowler.pages_register_on_message(message_register, null);
 
         for (const page_ of pages) {
-            const page = web_prowler.pagesByToken.pageByUrl.get(page_.url);
-            console.assert(web_prowler.pagesByToken.pageByUrl.get(page.url) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_pages(token).has(page)), page);
+            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
+            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
+            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.get_urls(token).has(page.url)), page);
         }
         console.assert(
             web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') + web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 1,
@@ -1418,7 +1418,7 @@ Test.test_推奨システムが最低限度動くこと = function () {
         const message_recommend = { page: { url: url, text_request: 'tbgyvcrfxvtbgyse' }, type: 'recommend' };
         await web_prowler.recommend_on_message(message_recommend);
 
-        web_prowler.page_delete(web_prowler.pagesByToken.pageByUrl.get(url));
+        web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
     }, 3000);
 };
 
