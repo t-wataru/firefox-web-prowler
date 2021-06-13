@@ -1048,6 +1048,7 @@ class WebProwler {
                 }
                 page_score_element_by_url.get(url).score_alone += score;
             }
+            page_score_element_by_url.get(url).score_alone /= page.tokens.size;
         }
 
         let score_alone_max = Number.MIN_SAFE_INTEGER;
