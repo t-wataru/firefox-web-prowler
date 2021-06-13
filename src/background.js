@@ -725,10 +725,18 @@ class WebProwler {
     async recommend_async(page_target) {
         debugLog('url', page_target.url);
 
+        const page_by_url = new Map();
+        for (const token of page_target.tokens) {
+            const pages = this.pagesByToken.get_pages(token);
+            for (const page of pages) {
+                page_by_url.set(page.url, page);
+            }
+        }
+
         const tokens_sorted = await this.tokens_sorted_calc(page_target.token_objects);
         debugLog('sortedTokens', tokens_sorted);
 
-        this.pages_sorted = await this.pages_sorted_calc(page_target, tokens_sorted);
+        this.pages_sorted = await this.pages_sorted_calc(page_target, tokens_sorted, page_by_url);
         debugLog('sortedPages', this.pages_sorted);
 
         this.page_related_display(this.pages_sorted, tokens_sorted);
@@ -869,7 +877,7 @@ class WebProwler {
         return score_sum / tokens.size;
     }
 
-    async pages_sorted_calc(page_target, tokens_sorted) {
+    async pages_sorted_calc(page_target, tokens_sorted, page_by_url) {
         const urlset_list = tokens_sorted.map((token) => this.urls_get_by_token(token));
 
         const urlset = new Set();
@@ -895,7 +903,7 @@ class WebProwler {
         const sortedPages = Array.from(urlset)
             .sort((url1, url2) => pages_scores_by_url_.get(url2) - pages_scores_by_url_.get(url1))
             .slice(0, PAGE_DISPLAY_LENGTH)
-            .map((url) => this.pagesByToken.pageByUrl.get(url));
+            .map((url) => page_by_url.get(url));
 
         console.assert(
             sortedPages.length <= 1 ||
