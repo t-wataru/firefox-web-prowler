@@ -26,6 +26,7 @@ const TOKEN_REWARD_ON_DELETE = -1.0;
 const TOKEN_REWARD_ON_TAB_DELETE = -0.1;
 const TOKEN_REWARD_ON_SELECT = 1.0;
 const TOKEN_REWARD_ON_RELOAD = -2;
+const SAME_TOKEN_SCORE_MULTIPLIER = 2.0;
 
 class PagesByToken {
     constructor() {
@@ -865,7 +866,7 @@ class WebProwler {
                 }
             }
         });
-        const pages_scores_by_url_ = await this.pages_scores_by_url(page_target, urlset, urlset_list);
+        const pages_scores_by_url_ = await this.pages_scores_by_url(page_target, urlset, urlset_list).catch((e) => console.error(e));
 
         urlset.delete(page_target.url);
 
@@ -877,7 +878,8 @@ class WebProwler {
         console.assert(
             sortedPages.length <= 1 ||
                 pages_scores_by_url_.get(sortedPages[0].url) >= pages_scores_by_url_.get(sortedPages[sortedPages.length - 1].url),
-            sortedPages
+            sortedPages,
+            pages_scores_by_url_
         );
 
         return sortedPages;
@@ -996,24 +998,7 @@ class WebProwler {
             }
         }
 
-        for (const token_object of token_objects_target) {
-            if (!this.pagesByToken.has(token_object.string)) {
-                continue;
-            }
-            const size = this.pagesByToken.size_get(token_object.string) + 1;
-            const uniqueness = token_object.weight * Math.pow(size, UNIQUNESS_EXPORNENT);
-            for (const url of urlSet) {
-                const page = this.pagesByToken.pageByUrl.get(url);
-                if (!page) {
-                    continue;
-                }
-                if (!page.token_objects.has(token_object)) {
-                    continue;
-                }
-                page_score_element_by_url.get(url).uniqueness += uniqueness;
-            }
-        }
-
+        const score_by_token = new Map();
         for (const url of urlSet) {
             const page = this.pagesByToken.pageByUrl.get(url);
             if (!page) {
@@ -1021,13 +1006,26 @@ class WebProwler {
                 console.warn(url);
                 continue;
             }
-            console.assert(page, url, page);
-            page_score_element_by_url.get(url).score_alone = this.page_score(page);
-        }
 
-        const uniquenessArray = [...page_score_element_by_url.values()].map((pageScoreElement) => pageScoreElement.uniqueness);
-        const maxUniqueness = Math.max(...uniquenessArray);
-        const minUniqueness = Math.min(...uniquenessArray);
+            page_score_element_by_url.get(url).score_alone = 0;
+            for (const token of page.tokens) {
+                let score = 0;
+                if (score_by_token.get(token)) {
+                    score = score_by_token.get(token);
+                } else {
+                    const token_object = this.token_object_by_text.get(token);
+                    const size = this.pagesByToken.size_get(token_object.string) + 1;
+                    if (targetPage.token_objects.has(token_object)) {
+                        score = SAME_TOKEN_SCORE_MULTIPLIER * token_object.weight * Math.pow(size, UNIQUNESS_EXPORNENT);
+                    } else {
+                        score = token_object.weight * Math.pow(size, UNIQUNESS_EXPORNENT);
+                    }
+                    score_by_token.set(token, score);
+                }
+                page_score_element_by_url.get(url).score_alone += score;
+            }
+        }
+        console.log([...score_by_token.entries()].filter((a) => !a[1]));
 
         let score_alone_max = Number.MIN_SAFE_INTEGER;
         let score_alone_min = Number.MAX_SAFE_INTEGER;
@@ -1050,11 +1048,9 @@ class WebProwler {
             }
             const bookmarkedScore = page.isBookmarked ? 1 : 0;
             const onTabScore = this.url_is_on_tab(url, tabs) ? 1 : 0;
-            const normaledUniqueness =
-                (page_score_element_by_url.get(url).uniqueness - minUniqueness) / (maxUniqueness - minUniqueness + 0.0000000000001);
             const score_alone_normaled =
                 (page_score_element_by_url.get(url).score_alone - score_alone_min) / (score_alone_max - score_alone_min + 0.0000000000001);
-            scoreByUrl.set(url, normaledUniqueness + score_alone_normaled - 0.05 * bookmarkedScore + 0.00001 * onTabScore);
+            scoreByUrl.set(url, score_alone_normaled - 0.05 * bookmarkedScore + 0.00001 * onTabScore);
         }
         return scoreByUrl;
     }
