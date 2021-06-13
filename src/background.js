@@ -28,9 +28,33 @@ const TOKEN_REWARD_ON_SELECT = 1.0;
 const TOKEN_REWARD_ON_RELOAD = -2;
 const SAME_TOKEN_SCORE_MULTIPLIER = 2.0;
 
+class PageByUrl {
+    constructor() {
+        this.map = new Map();
+    }
+    get(url) {
+        return this.map.get(url);
+    }
+    set(url, page) {
+        return this.map.set(url, page);
+    }
+    delete(url) {
+        return this.map.delete(url);
+    }
+    has(url) {
+        return this.map.has(url);
+    }
+    get size() {
+        return this.map.size;
+    }
+    values() {
+        return this.map.values();
+    }
+}
+
 class PagesByToken {
     constructor() {
-        this.pageByUrl = new Map();
+        this.pageByUrl = new PageByUrl();
         this.map = new Map();
         this.store = localforage.createInstance({ name: 'PagesByToken' });
     }
@@ -1025,7 +1049,6 @@ class WebProwler {
                 page_score_element_by_url.get(url).score_alone += score;
             }
         }
-        console.log([...score_by_token.entries()].filter((a) => !a[1]));
 
         let score_alone_max = Number.MIN_SAFE_INTEGER;
         let score_alone_min = Number.MAX_SAFE_INTEGER;
