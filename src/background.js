@@ -720,8 +720,11 @@ class WebProwler {
     async recommend_async(page_target) {
         debugLog('url', page_target.url);
 
+        const tokens_sorted = await this.tokens_sorted_calc(page_target.token_objects);
+        debugLog('sortedTokens', tokens_sorted);
+
         const url_set = new Set();
-        for (const token of page_target.tokens) {
+        for (const token of tokens_sorted) {
             const urls = this.pagesByToken.get_urls(token);
             if (urls) {
                 if (url_set.size > PAGE_DISPLAY_LENGTH * 2) {
@@ -744,9 +747,6 @@ class WebProwler {
                 page_by_url.set(url, page);
             })
         );
-
-        const tokens_sorted = await this.tokens_sorted_calc(page_target.token_objects);
-        debugLog('sortedTokens', tokens_sorted);
 
         await page_by_url_promise;
         debugLog('page_by_url', page_by_url);
