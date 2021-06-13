@@ -1,4 +1,4 @@
-let debug = false;
+let debug = true;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -9,7 +9,7 @@ const XHR_TIMEOUT_MS = 3 * 1000;
 const PAGE_DISPLAY_LENGTH = 20;
 const PAGE_NUMBER_BY_TOKEN_LIMIT = 40;
 const HISTORY_MAX_LOAD = 5000;
-const PAGE_GET_QUEUE_REDUCE_NUMBER = 10000;
+const PAGE_GET_QUEUE_REDUCE_NUMBER = 1000;
 const HISTORY_VISITCOUNT_THRESHOLD = 0;
 const PAGE_FREE_INTERVAL_MS = 10 * 1000;
 const PAGE_NUMBER_LIMIT = 100000;
@@ -708,7 +708,7 @@ class WebProwler {
 
         this.関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(this.pages_sorted);
 
-        this.page_get_queue_resize();
+        await this.page_get_queue_resize_async();
         this.page_get_queue_sort();
 
         this.pages_tokens_weight_reduce(this.pages_sorted);
@@ -735,7 +735,6 @@ class WebProwler {
         const isBookmarked = await this.url_is_bookmarked(message.page.url);
         const favicon_url = message.page.favicon_url;
         const url = message.page.url;
-        debugLog('page_register_on_message...');
 
         if (title == '') {
             return;
@@ -755,9 +754,6 @@ class WebProwler {
         }
 
         await page.async();
-        await this.page_register(page);
-        this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
-        debugLog('...page_register_on_message');
     }
 
     tokens_from_url(url) {
@@ -799,9 +795,7 @@ class WebProwler {
     }
 
     async pages_register_on_message(message, sender) {
-        if (!message.type == 'registers') {
-            return;
-        }
+        debugLog('pages_register_on_message...');
 
         for (const page_in_message of message.pages) {
             const title = page_in_message.title;
@@ -830,6 +824,8 @@ class WebProwler {
             await page.async();
             await this.page_register(page);
             this.page_tokens_weight_learn(page, TOKEN_REWARD_ON_REGISTER);
+
+            debugLog('...pages_register_on_message');
         }
     }
 
@@ -917,9 +913,8 @@ class WebProwler {
         this.page_get_queue = new Set(_pages.concat(Array.from(this.page_get_queue))); //resizeで後ろに置いたやつが消されるので、頭のほうに追加する
     }
 
-    page_get_queue_resize() {
+    async page_get_queue_resize_async() {
         if (this.page_get_queue.size > PAGE_GET_QUEUE_REDUCE_NUMBER) {
-            this.page_get_queue = new Set(Array.from(this.page_get_queue).filter((page) => await(page.text_content).length == 0));
             this.page_get_queue = new Set(Array.from(this.page_get_queue).slice(0, PAGE_GET_QUEUE_REDUCE_NUMBER / 2));
         }
     }
