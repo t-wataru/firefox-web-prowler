@@ -1001,7 +1001,7 @@ class WebProwler {
                 continue;
             }
             const size = this.pagesByToken.size_get(token_object.string) + 1;
-            const uniqueness = token_object.weight / (size * size);
+            const uniqueness = token_object.weight * Math.pow(size, UNIQUNESS_EXPORNENT);
             for (const url of urlSet) {
                 const page = this.pagesByToken.pageByUrl.get(url);
                 if (!page) {
