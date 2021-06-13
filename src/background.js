@@ -724,12 +724,14 @@ class WebProwler {
 
     async recommend_async(page_target) {
         debugLog('url', page_target.url);
-        this.pages_sorted = await this.pages_sorted_calc(page_target, this.bookmark_search);
+
+        const tokens_sorted = await this.tokens_sorted_calc(page_target.token_objects);
+        debugLog('sortedTokens', tokens_sorted);
+
+        this.pages_sorted = await this.pages_sorted_calc(page_target, tokens_sorted);
         debugLog('sortedPages', this.pages_sorted);
 
-        const sortedTokens = await this.tokens_sorted_calc(page_target.token_objects);
-        debugLog('sortedTokens', sortedTokens);
-        this.page_related_display(this.pages_sorted, sortedTokens);
+        this.page_related_display(this.pages_sorted, tokens_sorted);
 
         this.関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる(this.pages_sorted);
 
@@ -867,12 +869,8 @@ class WebProwler {
         return score_sum / tokens.size;
     }
 
-    async pages_sorted_calc(page_target) {
-        const urlset_list = page_target.tokens
-            .filter((token) => this.pagesByToken.size_get(token) > 1)
-            .filter((token) => PAGE_NUMBER_BY_TOKEN_LIMIT > this.pagesByToken.size_get(token))
-            .sort((token1, token2) => this.token_score(token1) > this.token_score(token2))
-            .map((token) => this.urls_get_by_token(token));
+    async pages_sorted_calc(page_target, tokens_sorted) {
+        const urlset_list = tokens_sorted.map((token) => this.urls_get_by_token(token));
 
         const urlset = new Set();
         urlset_list.forEach((tmpUrlSet) => {
