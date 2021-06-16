@@ -31,14 +31,14 @@ function init() {
     bookmark_search_button_star_on.onclick = () => {
         bookmark_search_button_star_on.classList.add('display_none');
         bookmark_search_button_star_off.classList.remove('display_none');
-        const message = { type: 'bookmark_search_switch', enable: true };
+        const message = { type: 'bookmark_search_switch', enable: false };
         browser.runtime.sendMessage(message);
     };
     const bookmark_search_button_star_off = document.getElementById('bookmark_search_button_off');
     bookmark_search_button_star_off.onclick = () => {
         bookmark_search_button_star_on.classList.remove('display_none');
         bookmark_search_button_star_off.classList.add('display_none');
-        const message = { type: 'bookmark_search_switch', enable: false };
+        const message = { type: 'bookmark_search_switch', enable: true };
         browser.runtime.sendMessage(message);
     };
 }

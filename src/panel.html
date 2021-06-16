@@ -194,18 +194,10 @@
                 --text: rgba(255, 255, 255, 0.8);
             }
             .star {
-                display: inline-block;
-                background-image: url(../icons/star_dark.png);
-                background-size: contain;
-                vertical-align: middle;
+                background-image: url(../icons/star_darkmode.png);
             }
             .star_fill {
-                display: inline-block;
                 background-image: url(../icons/star_fill_darkmode.png);
-                background-size: contain;
-                vertical-align: middle;
-                background-color: var(--weak);
-                z-index: 1;
             }
             .reload {
                 display: inline-block;
@@ -220,8 +212,8 @@
 <body>
     <div id="app_menu" class="app_menu top">
         <button title="Reload" id="pages_reload_button" class="reload"></button>
-        <button title="Recommend only bookmarked" id="bookmark_search_button_on" class="star"></button>
-        <button title="Recommend include unbookmarked" id="bookmark_search_button_off" class="star_fill display_none"></button>
+        <button title="Recommend only bookmarked" id="bookmark_search_button_on" class="star_fill display_none"></button>
+        <button title="Recommend include unbookamrked" id="bookmark_search_button_off" class="star"></button>
     </div>
     <div id="main"></div>
     <div id="donation" class="donation">
