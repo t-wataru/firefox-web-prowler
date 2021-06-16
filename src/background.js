@@ -78,8 +78,15 @@ class PagesByToken {
     async load_before_1_36_async() {
         const store = localforage.createInstance({ name: 'PagesByToken' });
         const map = await store.getItem('map');
-        if (map) {
-            this.map = map;
+        if (!map) {
+            return;
+        }
+
+        this.map = map;
+
+        for (const token of this.map.keys()) {
+            const urls = this.map.get(token);
+            this.size_by_token.set(token, urls.size);
         }
     }
     async save_async() {
