@@ -26,7 +26,7 @@
         button {
             color: var(--text);
             border: none;
-            border-radius: 100%;
+            border-radius: 10%;
             padding: 0.3em 0.5em;
             background-color: var(--background);
             transition: all 160ms 0s ease;
@@ -35,7 +35,6 @@
 
         button:hover {
             background-color: var(--weak);
-            backdrop-filter: blur(2px);
             z-index: 1;
         }
 
@@ -154,6 +153,8 @@
             background-image: url(../icons/star_fill.png);
             background-size: contain;
             vertical-align: middle;
+            background-color: var(--weak);
+            z-index: 1;
         }
         .display_none {
             display: none;
@@ -188,9 +189,29 @@
                 --link: #97c9ff;
                 --bookmark: #7FB2D4;
                 --background: #2B2A33;
-                --weak: #4995C855;
+                --weak: rgba(255, 255, 255, 0.3);
                 --strong: #fff;
                 --text: rgba(255, 255, 255, 0.8);
+            }
+            .star {
+                display: inline-block;
+                background-image: url(../icons/star_dark.png);
+                background-size: contain;
+                vertical-align: middle;
+            }
+            .star_fill {
+                display: inline-block;
+                background-image: url(../icons/star_fill_darkmode.png);
+                background-size: contain;
+                vertical-align: middle;
+                background-color: var(--weak);
+                z-index: 1;
+            }
+            .reload {
+                display: inline-block;
+                background-image: url(../icons/reload_darkmode.png);
+                background-size: contain;
+                vertical-align: middle;
             }
         }
     </style>
