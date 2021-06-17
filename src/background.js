@@ -1403,53 +1403,6 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
     }, 2000);
 };
 
-Test.test_推奨システムが最低限度動くこと = function () {
-    setTimeout(async () => {
-        const url = 'https://example.com/recommend/' + Math.random();
-        if (web_prowler.pagesByToken.pageByUrl.has(url)) {
-            web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
-        }
-        for (const url_sxedcazqwrfvtbgy of (await web_prowler.pagesByToken.get_urls_async('sxedcazqwrfvtbgy')) ?? []) {
-            const page = await web_prowler.pagesByToken.pageByUrl.get_async(url_sxedcazqwrfvtbgy);
-            web_prowler.page_delete_async(page);
-        }
-        for (const url_tbgyvcrfxvtbgyse of (await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse')) ?? []) {
-            web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url_tbgyvcrfxvtbgyse));
-        }
-        console.assert(web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') == 0, await web_prowler.pagesByToken.get_urls_async('sxedcazqwrfvtbgy'));
-        console.assert(
-            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 0,
-            await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse'),
-            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse')
-        );
-
-        const pages = [
-            { url: url, text_content: 'example3 text sxedcazqwrfvtbgy', title: 'example1 site' },
-            { url: url, text_content: 'example3 text tbgyvcrfxvtbgyse', title: 'example2 site' },
-        ];
-        const message_register = { pages: pages, type: 'registers' };
-        await web_prowler.pages_register_on_message(message_register, null);
-
-        for (const page_ of pages) {
-            const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
-            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.map.get(token).has(page.url)), page);
-        }
-        console.assert(
-            web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') + web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 1,
-            web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy'),
-            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse'),
-            await web_prowler.pagesByToken.get_urls_async('sxedcazqwrfvtbgy'),
-            await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse')
-        );
-
-        const message_recommend = { page: { url: url, text_request: 'tbgyvcrfxvtbgyse' }, type: 'recommend' };
-        await web_prowler.recommend_on_message(message_recommend);
-
-        web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
-    }, 3000);
-};
-
 Test.test_テキストを分かち書きしてトークンが取り出せること = async function () {
     const text =
         'このフレームワークでは、自社が置かれた状況をCustomer（顧客）、Competitor（競合）、Company（自社）の観点から情報を整理し、顧客に対する相対的な競合優位性を検証します。';
