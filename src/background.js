@@ -700,7 +700,7 @@ class WebProwler {
         if (!page) {
             return;
         }
-        for (const token of page.tokens()) {
+        for (const token of page.tokens) {
             this.pagesByToken.url_delete_from_token(token, page.url);
         }
         this.pagesByToken.pageByUrl.delete(page.url);
