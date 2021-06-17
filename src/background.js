@@ -1,4 +1,4 @@
-let debug = false;
+let debug = true;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -880,8 +880,11 @@ class WebProwler {
     }
 
     async pages_register_on_message(message, sender) {
-        debugLog('pages_register_on_message...');
+        if (message.type != 'registers') {
+            return;
+        }
 
+        debugLog('pages_register_on_message...');
         for (const page_in_message of message.pages) {
             const title = page_in_message.title;
             const text_content = page_in_message.text_content;
