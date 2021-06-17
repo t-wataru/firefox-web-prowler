@@ -14,7 +14,7 @@ class Test {
         }
     }
 }
-Test.ENABLE = false;
+Test.ENABLE = true;
 Test.log = Test.ENABLE ? console.log.bind(null, 'TEST:') : () => {};
 Test.assert = Test.ENABLE ? console.assert.bind(null) : () => {};
 

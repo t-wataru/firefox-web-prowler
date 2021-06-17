@@ -125,8 +125,9 @@ class PagesByToken {
         if (url_set) {
             console.assert(url_set?.delete?.constructor == Function, url_set);
         }
-        url_set?.delete(url);
+        url_set.delete(url);
         this.map.set(token, url_set);
+        this.size_by_token.set(token, url_set.size);
         this.save_with_timeout_async(10 * 1000);
     }
     size_get(key) {
@@ -136,12 +137,12 @@ class PagesByToken {
         }
         return size;
     }
-    async add_async(key, page) {
+    async add_async(token, page) {
         if (page) {
-            const urls = new Set(await this.get_urls_async(key)) ?? new Set();
-            urls.add(page.url);
-            this.map.set(key, urls);
-            this.size_by_token.set(key, urls.size);
+            const url_set = new Set(await this.get_urls_async(token)) ?? new Set();
+            url_set.add(page.url);
+            this.map.set(token, url_set);
+            this.size_by_token.set(token, url_set.size);
         }
         this.save_with_timeout_async(10 * 1000);
     }
@@ -706,7 +707,7 @@ class WebProwler {
         page.delete();
 
         console.assert((await this.pagesByToken.pageByUrl.get_async(page.url)) != page);
-        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.map.get(token).has(page.url)), page);
+        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.map.get(token)?.has(page.url)), page);
     }
 
     async recommend_on_message(message, sender, sendResponse = () => {}) {
@@ -1333,7 +1334,9 @@ Test.test_ページを登録できること = function () {
 
         const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
         console.assert(page, page);
-        console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.map.get(token).has(page.url)), page);
+        for (const token of page.tokens) {
+            console.assert(web_prowler.pagesByToken.map.get(token)?.has(page.url), token, page);
+        }
         console.assert(page.tokens.has('fvtgbzamikolpxscerynhujwd'), page);
 
         web_prowler.page_delete_async(page);
@@ -1411,7 +1414,11 @@ Test.test_推奨システムが最低限度動くこと = function () {
             web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url_tbgyvcrfxvtbgyse));
         }
         console.assert(web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') == 0, await web_prowler.pagesByToken.get_urls_async('sxedcazqwrfvtbgy'));
-        console.assert(web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 0, await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse'));
+        console.assert(
+            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 0,
+            await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse'),
+            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse')
+        );
 
         const pages = [
             { url: url, text_content: 'example3 text sxedcazqwrfvtbgy', title: 'example1 site' },
@@ -1427,6 +1434,8 @@ Test.test_推奨システムが最低限度動くこと = function () {
         }
         console.assert(
             web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy') + web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse') == 1,
+            web_prowler.pagesByToken.size_get('sxedcazqwrfvtbgy'),
+            web_prowler.pagesByToken.size_get('tbgyvcrfxvtbgyse'),
             await web_prowler.pagesByToken.get_urls_async('sxedcazqwrfvtbgy'),
             await web_prowler.pagesByToken.get_urls_async('tbgyvcrfxvtbgyse')
         );
