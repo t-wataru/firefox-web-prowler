@@ -1,4 +1,4 @@
-let debug = true;
+let debug = false;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -700,7 +700,7 @@ class WebProwler {
         if (!page) {
             return;
         }
-        for (const token of this.pagesByToken.tokens()) {
+        for (const token of page.tokens()) {
             this.pagesByToken.url_delete_from_token(token, page.url);
         }
         this.pagesByToken.pageByUrl.delete(page.url);
