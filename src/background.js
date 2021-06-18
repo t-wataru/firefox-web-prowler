@@ -453,17 +453,13 @@ class WebProwler {
             }
         }
 
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-            this.recommend_on_message(message, sender, sendResponse);
-            return true;
-        });
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_register_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message_async(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_reload_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_selected_on_message(message, sender, sendResponse));
         browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.bookmark_search_switch(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => debugLog('message', message));
 
         browser.bookmarks.onCreated.addListener(() => this.bookmark_urlset_reset);
         browser.bookmarks.onRemoved.addListener(() => this.bookmark_urlset_reset);
@@ -744,7 +740,7 @@ class WebProwler {
 
         sendResponse({ result: true });
 
-        return true;
+        return { response: 'バックグラウンドスクリプトからの応答です' };
     }
 
     async recommend_async(page_target) {
