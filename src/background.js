@@ -62,6 +62,7 @@ class PagesByToken {
         this.size_by_token = new Map();
         this.store_map = localforage.createInstance({ name: 'PagesByToken_inverted_index' });
         this.store = localforage.createInstance({ name: 'PagesByToken1_37' });
+        this.token_changed_set = new Set();
     }
     async load_async() {
         await this.load_before_1_36_async();
@@ -90,7 +91,7 @@ class PagesByToken {
         }
     }
     async save_async() {
-        for (const token of this.map.keys()) {
+        for (const token of this.token_changed_set) {
             const url_set = this.map.get(token);
             if (url_set?.size > 0) {
                 await this.store_map.setItem(token, [...url_set]).catch((e) => console.log(e));
@@ -128,7 +129,8 @@ class PagesByToken {
         url_set.delete(url);
         this.map.set(token, url_set);
         this.size_by_token.set(token, url_set.size);
-        this.save_with_timeout_async(10 * 1000);
+        this.token_changed_set.add(token);
+        this.save_with_timeout_async(SAVE_DELAY);
     }
     size_get(key) {
         const size = this.size_by_token.get(key);
@@ -144,7 +146,8 @@ class PagesByToken {
             this.map.set(token, url_set);
             this.size_by_token.set(token, url_set.size);
         }
-        this.save_with_timeout_async(10 * 1000);
+        this.token_changed_set.add(token);
+        this.save_with_timeout_async(SAVE_DELAY);
     }
     async save_with_timeout_async(timeout_ms) {
         if (!this.saving) {
