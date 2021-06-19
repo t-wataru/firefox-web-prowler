@@ -139,18 +139,27 @@ class PagesByToken {
         }
     }
     async save_async() {
-        for (const token of this.token_changed_set) {
+        console.log('save_async...');
+
+        const set_item_promises = Array.from(this.token_changed_set).map(async (token) => {
             const url_set = this.map.get(token);
-            if (url_set?.size > 0) {
-                await this.store_map
-                    .setItem(
-                        token,
-                        [...url_set].map((url) => this.url_store.id_get_by_url(url))
-                    )
-                    .catch((e) => console.log(e));
+            const url_id_array = [];
+            if (url_set) {
+                for (const url of url_set) {
+                    url_id_array.push(this.url_store.id_get_by_url(url));
+                }
             }
-        }
+            await this.store_map.setItem(token, url_id_array).catch((e) => console.log(e));
+        });
+        await Promise.all(set_item_promises);
+
+        this.token_changed_set.clear();
+
+        console.log('saving size_by_token...');
         await this.store.setItem('size_by_token', this.size_by_token);
+        console.log('...saving size_by_token');
+
+        console.log('...save_async');
     }
 
     async get_pages_async(key) {
