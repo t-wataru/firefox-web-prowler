@@ -26,6 +26,53 @@ const TOKEN_REWARD_ON_SELECT = 1.0;
 const TOKEN_REWARD_ON_RELOAD = -2;
 const SAME_TOKEN_SCORE_MULTIPLIER = 2.0;
 
+class Url_store {
+    constructor() {
+        this.store = localforage.createInstance({ name: 'Url_store' });
+        this.url_array = [];
+        this.id_by_url = new Map();
+    }
+    url_get_by_id(id) {
+        return this.url_array[id];
+    }
+    id_get_by_url(url) {
+        let id = this.id_by_url.get(url);
+        if (id?.constructor != Number) {
+            this.add_url(url);
+            id = this.id_by_url.get(url);
+        }
+        console.assert(id?.constructor == Number);
+        return id;
+    }
+    add_url(url) {
+        const id = this.url_array.length;
+        this.url_array[id] = url;
+        this.id_by_url.set(url, id);
+        this.save_async_with_delay();
+    }
+    async load_async() {
+        this.url_array = (await this.store.getItem('url_array')) ?? [];
+        if (!this.url_array) {
+            return;
+        }
+        for (let i = 0; i < this.url_array.length; i++) {
+            this.id_by_url.set(this.url_array[i], i);
+        }
+    }
+    async save_async() {
+        this.store.setItem('url_array', this.url_array);
+    }
+    async save_async_with_delay() {
+        if (this.saving) {
+            return;
+        }
+        await this.save_async();
+        setTimeout(() => {
+            this.saving = false;
+        }, SAVE_DELAY);
+    }
+}
+
 class PageByUrl {
     constructor() {
         this.map = new Map();
@@ -56,13 +103,14 @@ class PageByUrl {
 }
 
 class PagesByToken {
-    constructor() {
+    constructor(url_store = new Url_store()) {
         this.pageByUrl = new PageByUrl();
         this.map = new Map();
         this.size_by_token = new Map();
         this.store_map = localforage.createInstance({ name: 'PagesByToken_inverted_index' });
         this.store = localforage.createInstance({ name: 'PagesByToken1_37' });
         this.token_changed_set = new Set();
+        this.url_store = url_store;
     }
     async load_async() {
         await this.load_before_1_36_async();
@@ -94,7 +142,12 @@ class PagesByToken {
         for (const token of this.token_changed_set) {
             const url_set = this.map.get(token);
             if (url_set?.size > 0) {
-                await this.store_map.setItem(token, [...url_set]).catch((e) => console.log(e));
+                await this.store_map
+                    .setItem(
+                        token,
+                        [...url_set].map((url) => this.url_store.id_get_by_url(url))
+                    )
+                    .catch((e) => console.log(e));
             }
         }
         await this.store.setItem('size_by_token', this.size_by_token);
@@ -110,8 +163,11 @@ class PagesByToken {
         return pages;
     }
     async get_urls_async(key) {
-        const urls_map = this.map.get(key);
-        const urls = urls_map ?? (await this.store_map.getItem(key));
+        let urls = this.map.get(key);
+        if (!urls) {
+            const url_id_array = (await this.store_map.getItem(key)) ?? [];
+            urls = new Set(url_id_array.map((id) => this.url_store.url_get_by_id(id)));
+        }
         if (urls) {
             this.map.set(key, urls);
             this.size_by_token.set(key, urls.size);
@@ -428,7 +484,8 @@ Page_get.parser = new DOMParser();
 class WebProwler {
     constructor() {
         this.tokenizer = new Tokenizer();
-        this.pagesByToken = new PagesByToken();
+        this.url_store = new Url_store();
+        this.pagesByToken = new PagesByToken(this.url_store);
         this.bookmarkedUrlSet = new Set();
         this.history_set = new Set();
         this.tokens_ng = new Set();
@@ -658,6 +715,8 @@ class WebProwler {
     async load_async() {
         await this.pagesByToken.load_async();
         debugLog('pagesByToken.load_async', this.pagesByToken);
+
+        await this.url_store.load_async();
     }
 
     async load_from_page_load_async() {
@@ -693,6 +752,8 @@ class WebProwler {
         }
         this.pagesByToken.pageByUrl.set(page.url, page);
         page.save();
+
+        this.page_get_queue.add(page);
     }
 
     async page_delete_async(page) {
