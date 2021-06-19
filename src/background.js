@@ -964,6 +964,7 @@ class WebProwler {
         const pages = await Promise.all(sortedPages.map(async (page) => await page.clone()));
         const message = { sortedPages: pages, sortedTokens: sortedTokens, type: 'display_related_page' };
         debugLog('message', message);
+        browser.sidebarAction.setPanel({ panel: '/src/panel.html' });
         browser.runtime.sendMessage(message);
     }
 
