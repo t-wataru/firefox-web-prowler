@@ -111,6 +111,7 @@ class PagesByToken {
         this.store = localforage.createInstance({ name: 'PagesByToken1_37' });
         this.token_changed_set = new Set();
         this.url_store = url_store;
+        this.saving_map = new Map();
     }
     async load_async() {
         await this.load_before_1_36_async();
@@ -225,7 +226,7 @@ class PagesByToken {
         this.map.set(token, url_id_set);
         this.size_by_token.set(token, url_id_set.size);
         this.token_changed_set.add(token);
-        this.save_with_timeout_async(SAVE_DELAY);
+        this.save_with_delay_async(token, SAVE_DELAY);
     }
     size_get(key) {
         const size = this.size_by_token.get(key);
@@ -245,17 +246,15 @@ class PagesByToken {
             console.assert((await this.get_urls_async(token)).has(page.url));
         }
         this.token_changed_set.add(token);
-        this.save_with_timeout_async(SAVE_DELAY);
+        this.save_with_delay_async(token, SAVE_DELAY);
     }
-    async save_with_timeout_async(timeout_ms) {
-        if (!this.saving) {
-            this.saving = true;
-            await this.save_async().finally(() => {
-                setTimeout(() => {
-                    this.saving = false;
-                }, timeout_ms);
-            });
-        }
+    async save_with_delay_async(token, delay_ms) {
+        clearInterval(this.saving_map.get(token));
+        const timeout = setTimeout(async () => {
+            const url_id_set = this.map.get(token);
+            await this.store_map.setItem(token, url_id_set).catch((e) => console.log(e));
+        }, delay_ms);
+        this.saving_map.set(token, timeout);
     }
     delete(key) {
         return this.map.delete(key);
