@@ -316,11 +316,11 @@ class Page {
         console.assert(text_content == null || text_content.constructor == String, text_content);
         console.assert(title.constructor == String, title);
         this.url = url;
-
         this.title = title ?? '';
         this.token_objects = new Set();
         this.tokens = new Set(tokens);
         this.text_content = text_content ?? '';
+        this.score = 0;
     }
 
     async async() {
@@ -756,6 +756,9 @@ class WebProwler {
         const page_old = await this.pagesByToken.pageByUrl.get_async(page.url);
         if (page_old) {
             for (const token of page_old.tokens) {
+                if (page.tokens.has(token)) {
+                    continue;
+                }
                 this.pagesByToken.url_delete_from_token(token, page_old.url);
                 if (this.pagesByToken.size_get(token) == 0) {
                     this.pagesByToken.delete(token);
@@ -1045,11 +1048,7 @@ class WebProwler {
     }
 
     page_get_queue_sort() {
-        const page_score_by_page = new Map();
-        for (const page of this.page_get_queue) {
-            page_score_by_page.set(page, this.page_score_async(page));
-        }
-        this.page_get_queue = new Set(Array.from(this.page_get_queue).sort((a, b) => page_score_by_page.get(b) - page_score_by_page.get(a)));
+        this.page_get_queue = new Set(Array.from(this.page_get_queue).sort((a, b) => b.score - a.score));
     }
 
     async 関連ページに表示されてるやつの中から情報持ってない奴はサイトにアクセスして情報とってくる_関数内で(sortedPages) {
@@ -1157,6 +1156,7 @@ class WebProwler {
             if (!page) {
                 throw `page is ${page}, url i ${url}`;
             }
+            page.score = page_score_element_by_url.get(url).score_alone;
             scoreByUrl.set(url, page_score_element_by_url.get(url).score_alone);
         }
         return scoreByUrl;
