@@ -181,7 +181,10 @@ class PagesByToken {
         let url_id_set = this.map.get(key);
 
         if (!url_id_set) {
-            const url_id_array = (await this.store_map.getItem(key)) ?? [];
+            let url_id_array = (await this.store_map.getItem(key)) ?? [];
+            if (url_id_array.length > PAGE_DISPLAY_LENGTH * 2) {
+                url_id_array = url_id_array.slice(-1 * PAGE_DISPLAY_LENGTH * 2);
+            }
             url_id_set = new Set(url_id_array);
             if (url_id_set) {
                 this.map.set(key, url_id_set);
