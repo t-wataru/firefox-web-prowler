@@ -131,25 +131,28 @@ class PagesByToken {
             return;
         }
 
+        for (const entity of map.entities()) {
+            const token = entity[0];
+            const url_array = entity[1];
+            const url_id_set = new Set();
+            for (const url of url_array) {
+                url_id_set.add(this.url_store.id_get_by_url(url));
+            }
+            this.map.set(token, url_id_set);
+        }
         this.map = map;
 
         for (const token of this.map.keys()) {
-            const urls = this.map.get(token);
-            this.size_by_token.set(token, urls.size);
+            const url_id_set = this.map.get(token);
+            this.size_by_token.set(token, url_id_set.size);
         }
     }
     async save_async() {
         console.log('save_async...');
 
         const set_item_promises = Array.from(this.token_changed_set).map(async (token) => {
-            const url_set = this.map.get(token);
-            const url_id_array = [];
-            if (url_set) {
-                for (const url of url_set) {
-                    url_id_array.push(this.url_store.id_get_by_url(url));
-                }
-            }
-            await this.store_map.setItem(token, url_id_array).catch((e) => console.log(e));
+            const url_id_set = this.map.get(token);
+            await this.store_map.setItem(token, url_id_set).catch((e) => console.log(e));
         });
         await Promise.all(set_item_promises);
 
@@ -159,41 +162,68 @@ class PagesByToken {
         await this.store.setItem('size_by_token', this.size_by_token);
         console.log('...saving size_by_token');
 
+        this.url_store.save_async();
+
         console.log('...save_async');
     }
 
     async get_pages_async(key) {
-        const urls = await this.get_urls_async(key);
+        const url_set = await this.get_urls_async(key);
         const pages = new Set();
-        for (const url of urls) {
+        for (const url of url_set) {
             const page = await this.pageByUrl.get_async(url);
             pages.add(page);
         }
         return pages;
     }
     async get_urls_async(key) {
-        let urls = this.map.get(key);
-        if (!urls) {
+        let url_id_set = this.map.get(key);
+
+        if (!url_id_set) {
             const url_id_array = (await this.store_map.getItem(key)) ?? [];
-            urls = new Set(url_id_array.map((id) => this.url_store.url_get_by_id(id)));
+            url_id_set = new Set(url_id_array);
+            if (url_id_set) {
+                this.map.set(key, url_id_set);
+            }
         }
-        if (urls) {
-            this.map.set(key, urls);
-            this.size_by_token.set(key, urls.size);
+        if (url_id_set) {
+            this.size_by_token.set(key, url_id_set.size);
         }
-        return urls;
+
+        const url_set = new Set();
+        if (url_id_set) {
+            for (const id of url_id_set) {
+                url_set.add(this.url_store.url_get_by_id(id));
+            }
+        }
+        return url_set;
+    }
+    async get_url_id_set_async(key) {
+        let url_id_set = this.map.get(key);
+
+        if (!url_id_set) {
+            const url_id_array = (await this.store_map.getItem(key)) ?? [];
+            url_id_set = new Set(url_id_array);
+        }
+        if (url_id_set) {
+            this.map.set(key, url_id_set);
+            this.size_by_token.set(key, url_id_set.size);
+        }
+
+        return url_id_set;
     }
     tokens() {
         return this.map.keys();
     }
     url_delete_from_token(token, url) {
-        const url_set = new Set(this.map.get(token));
-        if (url_set) {
-            console.assert(url_set?.delete?.constructor == Function, url_set);
+        const url_id = this.url_store.id_get_by_url(url);
+        const url_id_set = this.map.get(token);
+        if (!url_id_set) {
+            return;
         }
-        url_set.delete(url);
-        this.map.set(token, url_set);
-        this.size_by_token.set(token, url_set.size);
+        url_id_set.delete(url_id);
+        this.map.set(token, url_id_set);
+        this.size_by_token.set(token, url_id_set.size);
         this.token_changed_set.add(token);
         this.save_with_timeout_async(SAVE_DELAY);
     }
@@ -206,10 +236,13 @@ class PagesByToken {
     }
     async add_async(token, page) {
         if (page) {
-            const url_set = new Set(await this.get_urls_async(token)) ?? new Set();
-            url_set.add(page.url);
-            this.map.set(token, url_set);
-            this.size_by_token.set(token, url_set.size);
+            const url_id_set = (await this.get_url_id_set_async(token)) ?? new Set();
+            const url_id = this.url_store.id_get_by_url(page.url);
+            console.assert(url_id.constructor == Number);
+            url_id_set.add(url_id);
+            this.map.set(token, url_id_set);
+            this.size_by_token.set(token, url_id_set.size);
+            console.assert((await this.get_urls_async(token)).has(page.url));
         }
         this.token_changed_set.add(token);
         this.save_with_timeout_async(SAVE_DELAY);
@@ -334,7 +367,7 @@ class Page {
         }
     }
 
-    async save() {
+    async save_async() {
         Page.store.setItem(this.url, await this.clone_without_data_on_storage());
     }
 
@@ -656,7 +689,7 @@ class WebProwler {
         }
 
         for (const page_got of pages_got) {
-            this.page_register_async(page_got);
+            await this.page_register_async(page_got);
         }
 
         debugLog('pages_got', pages_got);
@@ -722,10 +755,9 @@ class WebProwler {
     }
 
     async load_async() {
+        await this.url_store.load_async();
         await this.pagesByToken.load_async();
         debugLog('pagesByToken.load_async', this.pagesByToken);
-
-        await this.url_store.load_async();
     }
 
     async load_from_page_load_async() {
@@ -760,9 +792,7 @@ class WebProwler {
             await this.pagesByToken.add_async(token, page);
         }
         this.pagesByToken.pageByUrl.set(page.url, page);
-        page.save();
-
-        this.page_get_queue.add(page);
+        await page.save_async();
     }
 
     async page_delete_async(page) {
@@ -776,7 +806,6 @@ class WebProwler {
         page.delete();
 
         console.assert((await this.pagesByToken.pageByUrl.get_async(page.url)) != page);
-        console.assert(!Array.from(page.tokens).find((token) => this.pagesByToken.map.get(token)?.has(page.url)), page);
     }
 
     async recommend_on_message(message, sender, sendResponse = () => {}) {
@@ -1408,7 +1437,8 @@ Test.test_ページを登録できること = function () {
         const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
         console.assert(page, page);
         for (const token of page.tokens) {
-            console.assert(web_prowler.pagesByToken.map.get(token)?.has(page.url), token, page);
+            const url_set = await web_prowler.pagesByToken.get_urls_async(token);
+            console.assert(url_set?.has(page.url), token, page);
         }
         console.assert(page.tokens.has('fvtgbzamikolpxscerynhujwd'), page);
 
@@ -1439,7 +1469,10 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
             const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
             console.assert(page, page_.url);
             console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.map.get(token).has(page.url)), page);
+            for (const token of page.tokens) {
+                const url_set = await web_prowler.pagesByToken.get_urls_async(token);
+                console.assert(url_set?.has(page.url), token, page, url_set);
+            }
         }
         console.assert(await web_prowler.pagesByToken.get_pages_async('dcrfvzqwtyabgsxe'));
         console.assert(await web_prowler.pagesByToken.get_pages_async('bfgvxvteytcrdbgys'));
@@ -1466,7 +1499,10 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
         for (const page_ of pages) {
             const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
             console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
-            console.assert(!Array.from(page.tokens).find((token) => !web_prowler.pagesByToken.map.get(token).has(url)), page);
+            for (const token of page.tokens) {
+                const url_set = await web_prowler.pagesByToken.get_urls_async(token);
+                console.assert(url_set?.has(page.url), token, page);
+            }
         }
         console.assert(web_prowler.pagesByToken.size_get('vcrfxvtbgytbgyse') + web_prowler.pagesByToken.size_get('azqwsxedcrfvtbgy') == 1);
         web_prowler.page_delete_async(await web_prowler.pagesByToken.pageByUrl.get_async(url));
