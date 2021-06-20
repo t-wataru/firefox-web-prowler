@@ -449,7 +449,7 @@ class Page_get {
             return;
         }
         const title = titleElem.innerText;
-        const tokens = (await web_prowler.tokens_calc(title + '\n' + innerText)).concat(web_prowler.tokens_from_url(url));
+        const tokens = await web_prowler.tokens_calc(title + '\n' + innerText);
         const bookmark = await web_prowler.url_is_bookmarked(url);
         const favicon_url = htmlElem.querySelector("link[rel~='icon']")?.href;
         const page = new Page(url, tokens, innerText, title, bookmark, null, favicon_url);
@@ -472,7 +472,7 @@ class Page_get {
                     if (linkText == '') {
                         return;
                     }
-                    const tokens = (await web_prowler.tokens_calc(linkText)).concat(web_prowler.tokens_from_url(a_elem.href));
+                    const tokens = await web_prowler.tokens_calc(linkText);
                     if ((await web_prowler.tokens_score_average_async(tokens)) < TOKENS_SCORE_LIMIT) {
                         return;
                     }
@@ -494,7 +494,7 @@ class Page_get {
         const innerText = body.innerText;
         const titleElem = htmlElem.getElementsByTagName('title')[0];
         const title = titleElem ? titleElem.innerText : '';
-        const tokens = (await web_prowler.tokens_calc(title + '\n' + innerText)).concat(web_prowler.tokens_from_url(url));
+        const tokens = await web_prowler.tokens_calc(title + '\n' + innerText);
         const page = new Page(url, tokens, innerText, title, null, null);
         return page;
     }
@@ -912,7 +912,7 @@ class WebProwler {
 
         const title = message.page.title;
         const text_content = message.page.text_content;
-        const tokens = (await this.tokens_calc(title + '\n' + text_content)).concat(this.tokens_from_url(message.page.url));
+        const tokens = await this.tokens_calc(title + '\n' + text_content);
         const isBookmarked = await this.url_is_bookmarked(message.page.url);
         const favicon_url = message.page.favicon_url;
         const url = message.page.url;
@@ -938,18 +938,6 @@ class WebProwler {
 
         await page.async();
         await this.page_register_async(page);
-    }
-
-    tokens_from_url(url) {
-        return this.domain_from_url(url).split('.');
-    }
-
-    domain_from_url(url) {
-        const match = url.match(/^https?:\/{2,}(.*?)(?:\/|\?|#|$)/);
-        if (match) {
-            return match[1];
-        }
-        return '';
     }
 
     async pages_delete_on_message_async(message, sender) {
@@ -987,7 +975,7 @@ class WebProwler {
             const title = page_in_message.title;
             const text_content = page_in_message.text_content;
             const url = page_in_message.url;
-            const tokens = (await this.tokens_calc(title + '\n' + text_content)).concat(this.tokens_from_url(url));
+            const tokens = await this.tokens_calc(title + '\n' + text_content);
             const isBookmarked = this.bookmarkedUrlSet.has(page_in_message.url);
 
             if (title == '') {
@@ -1289,7 +1277,7 @@ class WebProwler {
             .filter((b) => this.uri_is_decodable(b.url));
         const pages = [];
         for (const b of bookmarks) {
-            const tokens = (await this.tokens_calc(b.title)).concat(this.tokens_from_url(b.url));
+            const tokens = await this.tokens_calc(b.title);
             pages.push(new Page(b.url, tokens, '', b.title, true, null));
         }
         return pages;
@@ -1371,7 +1359,7 @@ class WebProwler {
     }
 
     async toPageFromHistory(history) {
-        const tokens = (await this.tokens_calc(history.title)).concat(this.tokens_from_url(history.url));
+        const tokens = await this.tokens_calc(history.title);
         return new Page(history.url, tokens, '', history.title, this.bookmarkedUrlSet.has(history.url), null);
     }
 
