@@ -78,7 +78,7 @@ class PageByUrl {
         this.map = new Map();
     }
     async get_async(url) {
-        return this.map.get(url) ?? (await Page.load(url));
+        return await Page.load(url);
     }
     set(url, page) {
         return this.map.set(url, page);
@@ -317,14 +317,10 @@ class Page {
         console.assert(title.constructor == String, title);
         this.url = url;
 
-        if (title) {
-            this.title = title;
-        }
+        this.title = title ?? '';
         this.token_objects = new Set();
         this.tokens = new Set(tokens);
-        if (text_content) {
-            this.text_content = text_content;
-        }
+        this.text_content = text_content ?? '';
     }
 
     async async() {
@@ -333,17 +329,6 @@ class Page {
 
     get title_key() {
         return `{url: ${this.url}, title = true}`;
-    }
-
-    get title() {
-        return Page.title_store.getItem(this.title_key).then((text) => text ?? '');
-    }
-
-    set title(text) {
-        Test.assert(text.constructor == String, text);
-        this.title_promise = Page.title_store.setItem(this.title_key, text).catch((e) => {
-            console.warn(e);
-        });
     }
 
     get isBookmarked() {
@@ -374,9 +359,9 @@ class Page {
     async clone() {
         const page_clone = {
             url: this.url,
-            title: await this.title,
+            title: this.title,
             tokens: this.tokens,
-            text_content: await this.text_content,
+            text_content: this.text_content,
             isBookmarked: this.isBookmarked,
             favicon_url: this.favicon_url,
         };
@@ -386,6 +371,8 @@ class Page {
     clone_without_data_on_storage() {
         const page_clone = {
             url: this.url,
+            title: this.title,
+            text_content: this.text_content,
             tokens: this.tokens,
             isBookmarked: this.isBookmarked,
             favicon_url: this.favicon_url,
@@ -406,24 +393,11 @@ class Page {
         return JSON.stringify({ type: 'page', url: this.url });
     }
 
-    get text_content() {
-        return Page.text_content_store.getItem(this.key_storage()).then((text) => text ?? '');
-    }
-
-    set text_content(value) {
-        Test.assert(value.constructor == String, value);
-        this.text_content_promise = Page.text_content_store.setItem(this.key_storage(), value).catch((e) => {
-            console.warn(e);
-        });
-    }
-
     async delete() {
         return await Page.store.removeItem(this.url);
     }
 }
 Page.store = localforage.createInstance({ name: 'Page' });
-Page.text_content_store = localforage.createInstance({ name: 'Page_text_content' });
-Page.title_store = localforage.createInstance({ name: 'Page_title' });
 
 class Page_get {
     static async createPageAndLinkedPagesFromUrl(url) {
@@ -676,7 +650,7 @@ class WebProwler {
         if (['mp4', 'jpeg', 'png', 'jpg', 'gif', 'mp3'].includes(extension)) {
             return;
         }
-        if ((await page.text_content.length) > 0) {
+        if (page.text_content.length > 0) {
             return;
         }
 
@@ -1084,7 +1058,7 @@ class WebProwler {
             if (pages_contents_getting.length > PAGE_CONTENTS_GET_SIZE) {
                 break;
             }
-            const text_content = await page.text_content;
+            const text_content = page.text_content;
             if (text_content.constructor == String && text_content.length == 0) {
                 pages_contents_getting.push(page);
             }
@@ -1318,7 +1292,7 @@ class WebProwler {
     }
 
     async page_innerText_save(page) {
-        const text_content = await page.text_content;
+        const text_content = page.text_content;
         if (text_content == '') {
             return;
         }
@@ -1335,6 +1309,7 @@ class WebProwler {
 
     async pages_from_history(histories) {
         debugLog('createPagesFromHistory...');
+        debugLog(histories);
         for (let history of histories) {
             if (this.url_is_exist(history.url)) {
                 continue;
@@ -1378,7 +1353,7 @@ Test.test_履歴からページオブジェクトが生成できること = asyn
     sleep(10000).then(async () => {
         const history = (await web_prowler.history_array())[0];
         const page = await web_prowler.toPageFromHistory(history);
-        console.assert((await page.text_content).constructor == String, page);
+        console.assert(page.text_content.constructor == String, page);
         console.assert(page.url.constructor == String, page);
         console.assert(page.tab == null, page);
         console.assert(page.tokens.constructor == Set, page);
@@ -1402,7 +1377,7 @@ Test.test_URLからページオブジェクトを生成できること = functio
         const url = 'https://example.com/';
         const page = await Page_get.createPageFromUrl(url);
         console.assert((await page.title) == 'Example Domain', await page.title);
-        console.assert((await page.text_content).includes('This domain is for use in illustrative examples in documents.'), await page.text_content);
+        console.assert(page.text_content.includes('This domain is for use in illustrative examples in documents.'), page.text_content);
         console.assert(page.tokens.has('illustrative'), page);
         console.assert(page.url == url, page);
     })();
@@ -1412,7 +1387,7 @@ Test.test_body内のscriptは消すこと = function () {
     (async () => {
         const url = 'https://www.youtube.com/watch?v=lXOyo_INVfk';
         const page = await Page_get.createPageFromUrl(url);
-        Test.assert(!(await page.text_content).includes('{'), await page.text_content);
+        Test.assert(!page.text_content.includes('{'), page.text_content);
     })();
 };
 
@@ -1455,8 +1430,10 @@ Test.test_一つのメッセージで送られた複数のページを一括で�
 
         for (const page_ of pages) {
             const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
+            console.assert(page.title == page_.title);
+            console.assert(page.text_content == page_.text_content);
+            console.assert(page.url == page_.url);
             console.assert(page, page_.url);
-            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
             for (const token of page.tokens) {
                 const url_set = await web_prowler.pagesByToken.get_urls_async(token);
                 console.assert(url_set?.has(page.url), token, page, url_set);
@@ -1486,7 +1463,6 @@ Test.test_urlが同じページが登録されても古い奴が消されてい�
 
         for (const page_ of pages) {
             const page = await web_prowler.pagesByToken.pageByUrl.get_async(page_.url);
-            console.assert((await web_prowler.pagesByToken.pageByUrl.get_async(page.url)) == page, page);
             for (const token of page.tokens) {
                 const url_set = await web_prowler.pagesByToken.get_urls_async(token);
                 console.assert(url_set?.has(page.url), token, page);
