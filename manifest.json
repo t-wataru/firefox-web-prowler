@@ -2,7 +2,7 @@
     "manifest_version": 2,
     "name": "Web Prowler",
     "description": "Display related pages on sidebar.",
-    "version": "1.36",
+    "version": "1.37",
     "applications": {
         "gecko": {
             "strict_min_version": "60.0"
