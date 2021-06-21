@@ -499,6 +499,18 @@ class WebProwler {
     async init() {
         debugLog('init...');
 
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_register_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message_async(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_reload_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_selected_on_message(message, sender, sendResponse));
+        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.bookmark_search_switch(message, sender, sendResponse));
+
+        browser.bookmarks.onCreated.addListener(() => this.bookmark_urlset_reset);
+        browser.bookmarks.onRemoved.addListener(() => this.bookmark_urlset_reset);
+        browser.bookmarks.onChanged.addListener(() => this.bookmark_urlset_reset);
+
         this.bookmarkedUrlSet = await this.bookmark_urlset();
         this.historie_set = new Set(await this.history_array());
         await this.token_object_by_text.load_async();
@@ -515,18 +527,6 @@ class WebProwler {
                 await this.pages_from_history(this.historie_set);
             }
         }
-
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_register_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.pages_register_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.page_delete_on_message_async(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_reload_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.recommend_selected_on_message(message, sender, sendResponse));
-        browser.runtime.onMessage.addListener((message, sender, sendResponse) => this.bookmark_search_switch(message, sender, sendResponse));
-
-        browser.bookmarks.onCreated.addListener(() => this.bookmark_urlset_reset);
-        browser.bookmarks.onRemoved.addListener(() => this.bookmark_urlset_reset);
-        browser.bookmarks.onChanged.addListener(() => this.bookmark_urlset_reset);
 
         browser.history.onVisited.addListener((histry_item) => {
             this.historie_set.add(histry_item.id);
@@ -620,7 +620,7 @@ class WebProwler {
     }
 
     async bookmark_urlset_reset() {
-        bookmarkedUrlSet = await bookmark_urlset();
+        this.bookmarkedUrlSet = await bookmark_urlset();
     }
 
     async prowl(page_get_queue) {
