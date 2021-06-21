@@ -1,4 +1,4 @@
-let debug = true;
+let debug = false;
 let test = false;
 debugLog = debug ? console.log.bind(null, 'backgrount.js DEBUG:') : () => {};
 testLog = test ? console.log.bind(null, 'backgrount.js TEST:') : () => {};
@@ -12,7 +12,7 @@ const HISTORY_MAX_LOAD = 5000;
 const PAGE_GET_QUEUE_REDUCE_NUMBER = 1000;
 const HISTORY_VISITCOUNT_THRESHOLD = 0;
 const PAGE_FREE_INTERVAL_MS = 10 * 1000;
-const PAGE_NUMBER_LIMIT = 100000;
+const PAGE_NUMBER_LIMIT = 20000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
@@ -31,8 +31,10 @@ class Url_store {
         this.store = localforage.createInstance({ name: 'Url_store' });
         this.url_array = [];
         this.id_by_url = new Map();
+        this.last_access_timestamp_by_url_id = new Map();
     }
     url_get_by_id(id) {
+        this.last_access_timestamp_by_url_id.set(id, Date.now());
         return this.url_array[id];
     }
     id_get_by_url(url) {
@@ -42,6 +44,8 @@ class Url_store {
             id = this.id_by_url.get(url);
         }
         console.assert(id?.constructor == Number);
+
+        this.last_access_timestamp_by_url_id.set(id, Date.now());
         return id;
     }
     add_url(url) {
@@ -49,6 +53,12 @@ class Url_store {
         this.url_array[id] = url;
         this.id_by_url.set(url, id);
         this.save_async_with_delay();
+
+        this.last_access_timestamp_by_url_id.set(id, Date.now());
+    }
+    last_access_timestamp_get(url) {
+        let id = this.id_by_url.get(url);
+        return this.last_access_timestamp_by_url_id.get(id);
     }
     async load_async() {
         this.url_array = (await this.store.getItem('url_array')) ?? [];
@@ -58,9 +68,12 @@ class Url_store {
         for (let i = 0; i < this.url_array.length; i++) {
             this.id_by_url.set(this.url_array[i], i);
         }
+
+        this.last_access_timestamp_by_url_id = (await this.store.getItem('access_timestamp_by_url_id')) ?? new Map();
     }
     async save_async() {
         this.store.setItem('url_array', this.url_array);
+        this.store.setItem('access_timestamp_by_url_id', this.last_access_timestamp_by_url_id);
     }
     async save_async_with_delay() {
         if (this.saving) {
@@ -94,6 +107,9 @@ class PageByUrl {
     }
     values() {
         return this.map.values();
+    }
+    keys() {
+        return this.map.keys();
     }
     async load_async() {
         for (const url of await Page.store.keys()) {
@@ -560,8 +576,7 @@ class WebProwler {
                 return;
             }
             const page_free_select_number = (pages_number - PAGE_NUMBER_LIMIT) * 3;
-            this.pages_free(page_free_select_number, pages_number - PAGE_NUMBER_LIMIT);
-            console.assert(this.pagesByToken.pageByUrl.size == PAGE_NUMBER_LIMIT, this.pagesByToken.pageByUrl.size);
+            await this.pages_free_async(page_free_select_number, pages_number - PAGE_NUMBER_LIMIT);
         }, PAGE_FREE_INTERVAL_MS);
         debugLog('...init');
     }
@@ -679,40 +694,42 @@ class WebProwler {
         return url.split(/#|\?/)[0].split('.').pop().trim();
     }
 
-    pages_free(select_number, free_number = 1) {
+    async pages_free_async(select_number, free_number = 1) {
         if (this.pagesByToken.pageByUrl.size < select_number) {
             return;
         }
-        const pages_base = Array.from(this.pagesByToken.pageByUrl.values());
-        const page_set = new Set();
-        for (let i = 0; i < pages_base.length; i++) {
-            const page_random_index = this.index_random(pages_base);
-            let page = null;
-            for (let j = 0; j <= pages_base.length; j++) {
-                const index = (page_random_index + j) % pages_base.length;
-                if (!page_set.has(pages_base[index])) {
-                    page = pages_base[index];
+        const urls_base = Array.from(this.pagesByToken.pageByUrl.keys());
+        const url_set = new Set();
+        for (let i = 0; i < urls_base.length; i++) {
+            const url_random_index = this.index_random(urls_base);
+            let url = null;
+            for (let j = 0; j <= urls_base.length; j++) {
+                const index = (url_random_index + j) % urls_base.length;
+                if (!url_set.has(urls_base[index])) {
+                    url = urls_base[index];
                     break;
                 }
             }
-            console.assert(page);
+            console.assert(url);
 
-            page_set.add(page);
+            url_set.add(url);
 
-            if (page_set.size >= select_number) {
+            if (url_set.size >= select_number) {
                 break;
             }
         }
 
-        const page_score_by_page = new Map();
-        for (const page of page_set) {
-            page_score_by_page.set(page, this.page_score_async(page));
+        if (url_set.size < select_number) {
+            return;
         }
 
-        const pages_sorted = [...page_set].sort((p1, p2) => page_score_by_page.get(p1) - page_score_by_page.get(p2));
+        const url_array = [...url_set];
+        const url_sorted_array = url_array.sort((a, b) => this.url_store.last_access_timestamp_get(a) - this.url_store.last_access_timestamp_get(b));
 
         for (let i = 0; i < free_number; i++) {
-            this.page_delete_async(pages_sorted[i]);
+            const url = url_sorted_array[i];
+            const page = await this.pagesByToken.pageByUrl.get_async(url);
+            this.page_delete_async(page);
         }
     }
 
