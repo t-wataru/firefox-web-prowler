@@ -937,8 +937,10 @@ class WebProwler {
             return;
         }
         const page = await this.pagesByToken.pageByUrl.get_async(message.page.url);
-        await this.page_delete_async(page);
-        this.page_tokens_weight_learn_async(page, TOKEN_REWARD_ON_DELETE);
+        if (page) {
+            this.page_tokens_weight_learn_async(page, TOKEN_REWARD_ON_DELETE);
+            await this.page_delete_async(page);
+        }
         console.assert(!(await this.pagesByToken.pageByUrl.get_async(page.url)));
     }
 
