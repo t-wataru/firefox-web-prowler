@@ -140,23 +140,17 @@ class PagesByToken {
         await this.pageByUrl.load_async();
     }
     async save_async() {
-        console.log('save_async...');
-
         const set_item_promises = Array.from(this.token_changed_set).map(async (token) => {
             const url_id_set = this.map.get(token);
-            await this.store_map.setItem(token, url_id_set).catch((e) => console.log(e));
+            await this.store_map.setItem(token, url_id_set).catch((e) => console.assert(e));
         });
         await Promise.all(set_item_promises);
 
         this.token_changed_set.clear();
 
-        console.log('saving size_by_token...');
         await this.store.setItem('size_by_token', this.size_by_token);
-        console.log('...saving size_by_token');
 
         this.url_store.save_async();
-
-        console.log('...save_async');
     }
 
     async get_pages_async(key) {
@@ -246,7 +240,7 @@ class PagesByToken {
         clearInterval(this.saving_map.get(token));
         const timeout = setTimeout(async () => {
             const url_id_set = this.map.get(token);
-            await this.store_map.setItem(token, url_id_set).catch((e) => console.log(e));
+            await this.store_map.setItem(token, url_id_set).catch((e) => console.assert(e));
         }, delay_ms);
         this.saving_map.set(token, timeout);
     }
