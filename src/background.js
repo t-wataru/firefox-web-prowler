@@ -130,8 +130,6 @@ class PagesByToken {
         this.saving_map = new Map();
     }
     async load_async() {
-        await this.load_before_1_36_async();
-
         const keys = await this.store_map.keys();
         for (const key of keys) {
             this.map.set(key, null);
@@ -140,29 +138,6 @@ class PagesByToken {
         this.size_by_token = (await this.store.getItem('size_by_token')) ?? this.size_by_token;
 
         await this.pageByUrl.load_async();
-    }
-    async load_before_1_36_async() {
-        const store = localforage.createInstance({ name: 'PagesByToken' });
-        const map = await store.getItem('map');
-        if (!map) {
-            return;
-        }
-
-        for (const entity of map.entities()) {
-            const token = entity[0];
-            const url_array = entity[1];
-            const url_id_set = new Set();
-            for (const url of url_array) {
-                url_id_set.add(this.url_store.id_get_by_url(url));
-            }
-            this.map.set(token, url_id_set);
-        }
-        this.map = map;
-
-        for (const token of this.map.keys()) {
-            const url_id_set = this.map.get(token);
-            this.size_by_token.set(token, url_id_set.size);
-        }
     }
     async save_async() {
         console.log('save_async...');
@@ -415,7 +390,7 @@ class Page {
         return await Page.store.removeItem(this.url);
     }
 }
-Page.store = localforage.createInstance({ name: 'Page' });
+Page.store = localforage.createInstance({ name: 'Page1.37' });
 
 class Page_get {
     static async createPageAndLinkedPagesFromUrl(url) {
