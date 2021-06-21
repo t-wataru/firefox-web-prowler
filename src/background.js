@@ -705,7 +705,7 @@ class WebProwler {
             let url = null;
             for (let j = 0; j <= urls_base.length; j++) {
                 const index = (url_random_index + j) % urls_base.length;
-                if (!url_set.has(urls_base[index])) {
+                if (!url_set.has(urls_base[index]) && !this.bookmarkedUrlSet.has(urls_base[index])) {
                     url = urls_base[index];
                     break;
                 }
