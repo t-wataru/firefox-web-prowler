@@ -693,11 +693,11 @@ class WebProwler {
         }
 
         const url_array = [...url_set];
-        const url_sorted_array = url_array.sort((a, b) => this.url_store.last_access_timestamp_get(a) - this.url_store.last_access_timestamp_get(b));
+        const pages = await Promise.all(url_array.map(async (url) => await this.pagesByToken.pageByUrl.get_async(url)));
+        const pages_sorted = pages.sort((page1, page2) => page1.score - page2.score);
 
         for (let i = 0; i < free_number; i++) {
-            const url = url_sorted_array[i];
-            const page = await this.pagesByToken.pageByUrl.get_async(url);
+            const page = pages_sorted[i];
             this.page_delete_async(page);
         }
     }
