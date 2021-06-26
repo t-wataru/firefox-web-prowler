@@ -116,7 +116,14 @@ async function page_register_request(textLines) {
     }
 
     page_register_request.textLines_before = textLines;
-    const message = { page: { url: location.href, text_content: textLines, title: document.title, favicon_url: favicon_url() }, type: 'register' };
+
+    const link_url_array = [];
+    const a_elem_array = document.getElementsByTagName('a');
+    for (const a_elem of a_elem_array) {
+        link_url_array.push(a_elem.href);
+    }
+
+    const message = { page: { url: location.href, text_content: textLines, title: document.title, link_url_array }, type: 'register' };
     debugLog('message', message);
     browser.runtime.sendMessage(message);
     links_register_request();

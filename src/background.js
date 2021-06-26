@@ -12,7 +12,7 @@ const HISTORY_MAX_LOAD = 5000;
 const PAGE_GET_QUEUE_REDUCE_NUMBER = 1000;
 const HISTORY_VISITCOUNT_THRESHOLD = 0;
 const PAGE_FREE_INTERVAL_MS = 10 * 1000;
-const PAGE_NUMBER_LIMIT = 20000;
+const PAGE_NUMBER_LIMIT = 100000;
 const PAGE_FREE_SELECT_NUMBER = 10;
 const HISTORY_LOAD = true;
 const BOOKMARK_LOAD = true;
@@ -296,9 +296,9 @@ class Token {
         this.weight = 1.0;
     }
 }
-
+``;
 class Page {
-    constructor(url = '', tokens, text_content = '', title = '', isBookmarked = false, tab = undefined, favicon_url = undefined) {
+    constructor(url = '', tokens, text_content = '', title = '', link_url_array = []) {
         console.assert(url.constructor == String, url);
         console.assert(text_content == null || text_content.constructor == String, text_content);
         console.assert(title.constructor == String, title);
@@ -308,6 +308,7 @@ class Page {
         this.tokens = new Set(tokens);
         this.text_content = text_content ?? '';
         this.score = 0;
+        this.link_url_array = link_url_array;
     }
 
     async async() {
@@ -350,7 +351,6 @@ class Page {
             tokens: this.tokens,
             text_content: this.text_content,
             isBookmarked: this.isBookmarked,
-            favicon_url: this.favicon_url,
         };
         return page_clone;
     }
@@ -361,8 +361,7 @@ class Page {
             title: this.title,
             text_content: this.text_content,
             tokens: this.tokens,
-            isBookmarked: this.isBookmarked,
-            favicon_url: this.favicon_url,
+            link_url_array: this.link_url_array,
         };
         return page_clone;
     }
@@ -370,7 +369,8 @@ class Page {
     static async load(url) {
         const loaded = await Page.store.getItem(url);
         if (loaded && loaded.tokens != undefined && loaded.tokens.constructor == Set) {
-            return new Page(url, loaded.tokens, loaded.text_content, loaded.title, null, null, null);
+            const link_url_array = loaded.link_url_array ?? [];
+            return new Page(url, loaded.tokens, loaded.text_content, loaded.title, link_url_array);
         }
 
         return null;
@@ -411,9 +411,6 @@ class Page_get {
         }
         const title = titleElem.innerText;
         const tokens = (await web_prowler.tokens_calc(title + '\n' + innerText)).concat(web_prowler.tokens_from_url(url));
-        const bookmark = await web_prowler.url_is_bookmarked(url);
-        const favicon_url = htmlElem.querySelector("link[rel~='icon']")?.href;
-        const page = new Page(url, tokens, innerText, title, bookmark, null, favicon_url);
 
         let a_elem_array = Array.from(htmlElem.getElementsByTagName('a'))
             .filter(
@@ -437,10 +434,13 @@ class Page_get {
                     if ((await web_prowler.tokens_score_average_async(tokens)) < TOKENS_SCORE_LIMIT) {
                         return;
                     }
-                    return new Page(a_elem.href, tokens, '', linkText, null, null);
+                    return new Page(a_elem.href, tokens, '', linkText);
                 })
             )
         ).filter((page) => page);
+        const link_url_array = a_elem_array.map((a_elem) => a_elem.href);
+        const page = new Page(url, tokens, innerText, title, link_url_array);
+
         return pages_from_link.concat(page);
     }
 
@@ -456,7 +456,7 @@ class Page_get {
         const titleElem = htmlElem.getElementsByTagName('title')[0];
         const title = titleElem ? titleElem.innerText : '';
         const tokens = (await web_prowler.tokens_calc(title + '\n' + innerText)).concat(web_prowler.tokens_from_url(url));
-        const page = new Page(url, tokens, innerText, title, null, null);
+        const page = new Page(url, tokens, innerText, title);
         return page;
     }
 
@@ -878,15 +878,14 @@ class WebProwler {
         const title = message.page.title;
         const text_content = message.page.text_content;
         const tokens = (await this.tokens_calc(title + '\n' + text_content)).concat(this.tokens_from_url(message.page.url));
-        const isBookmarked = await this.url_is_bookmarked(message.page.url);
-        const favicon_url = message.page.favicon_url;
         const url = message.page.url;
+        const link_url_array = message.page.link_url_array ?? [];
 
         if (title == '') {
             return;
         }
 
-        const page = new Page(message.page.url, tokens, text_content, title, isBookmarked, null, favicon_url);
+        const page = new Page(message.page.url, tokens, text_content, title, link_url_array);
         if (this.pagesByToken.pageByUrl.has(url)) {
             const text_content_old = await (await this.pagesByToken.pageByUrl.get_async(page.url)).text_content;
             if (text_content_old == text_content) {
@@ -955,7 +954,7 @@ class WebProwler {
             const text_content = page_in_message.text_content;
             const url = page_in_message.url;
             const tokens = (await this.tokens_calc(title + '\n' + text_content)).concat(this.tokens_from_url(url));
-            const isBookmarked = this.bookmarkedUrlSet.has(page_in_message.url);
+            const link_url_array = page_in_message.link_url_array ?? [];
 
             if (title == '') {
                 return;
@@ -973,7 +972,7 @@ class WebProwler {
                 return;
             }
 
-            const page = new Page(url, tokens, text_content, title, isBookmarked, null);
+            const page = new Page(url, tokens, text_content, title, link_url_array);
             await this.page_register_async(page);
         }
         debugLog('...pages_register_on_message');
@@ -1158,7 +1157,10 @@ class WebProwler {
             if (!page) {
                 throw `page is ${page}, url i ${url}`;
             }
-            page.score = page_score_element_by_url.get(url).score_alone;
+            page.score =
+                page_score_element_by_url.get(url).score_alone -
+                (0.02 * (page.link_url_array.length ?? 0)) / page.tokens.size -
+                0.7 * page.title.length;
             scoreByUrl.set(url, page_score_element_by_url.get(url).score_alone);
         }
         return scoreByUrl;
@@ -1254,7 +1256,7 @@ class WebProwler {
         const pages = [];
         for (const b of bookmarks) {
             const tokens = (await this.tokens_calc(b.title)).concat(this.tokens_from_url(b.url));
-            pages.push(new Page(b.url, tokens, '', b.title, true, null));
+            pages.push(new Page(b.url, tokens, '', b.title));
         }
         return pages;
     }
@@ -1337,7 +1339,7 @@ class WebProwler {
 
     async toPageFromHistory(history) {
         const tokens = (await this.tokens_calc(history.title)).concat(this.tokens_from_url(history.url));
-        return new Page(history.url, tokens, '', history.title, this.bookmarkedUrlSet.has(history.url), null);
+        return new Page(history.url, tokens, '', history.title);
     }
 
     async history_array() {
@@ -1365,12 +1367,12 @@ Test.test_履歴からページオブジェクトが生成できること = asyn
 
 Test.test_URLと対応するページがあればtrueを返す = function () {
     const url = 'https://example.com';
-    const pageByUrl_ = new Map([[url, new Page(url, [], null, 'example title', false, null, null)]]);
+    const pageByUrl_ = new Map([[url, new Page(url, [], null, 'example title')]]);
     Test.assert(web_prowler.url_is_exist(url, pageByUrl_));
 };
 Test.test_URLと対応するページがなければfalseを返す = function () {
     const url = 'https://example.com';
-    const pageByUrl_ = new Map([[url, new Page(url, [], null, 'example title', false, null, null)]]);
+    const pageByUrl_ = new Map([[url, new Page(url, [], null, 'example title')]]);
     Test.assert(!web_prowler.url_is_exist('https://dont.exist.example.com', pageByUrl_));
 };
 
